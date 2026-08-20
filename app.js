@@ -1,4 +1,4 @@
-// ExamCraft AI - Standalone React App with Login, RBAC, Settings, Notes, HOD Oversight & Home Sub-Page
+// ExamCraft AI - Final Unified Standalone React App
 const { useState, useEffect } = React;
 
 // ----------------------------------------------------------------------
@@ -473,28 +473,9 @@ function LoginScreen({ onLoginSuccess }) {
   const [regBranch, setRegBranch] = useState('Computer Engineering');
   const [regSubject, setRegSubject] = useState('Physics (Science Paper I)');
 
-  // Handle Login Submit
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
     setErrorMessage('');
-    
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernameInput, passwordInput })
-      });
-
-      const data = await response.json();
-      if (data.success && data.user) {
-        onLoginSuccess(data.user);
-        return;
-      }
-    } catch (err) {
-      console.warn('Backend login notice, checking local demo database:', err);
-    }
-
-    // Local array check
     const user = MOCK_USERS.find(
       u => (u.username.toLowerCase() === usernameInput.trim().toLowerCase() || 
             u.email.toLowerCase() === usernameInput.trim().toLowerCase()) &&
@@ -515,8 +496,7 @@ function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  // Handle Registration Submit
-  const handleRegister = async (e) => {
+  const handleRegister = (e) => {
     e.preventDefault();
     if (!regName || !regEmail || !regUsername || !regPassword) {
       setErrorMessage('Please fill in all required registration fields.');
@@ -553,7 +533,6 @@ function LoginScreen({ onLoginSuccess }) {
     } catch (err) {
       console.warn('Backend registration error, adding to local session:', err);
     }
-
     const newUser = {
       id: `usr-${Date.now()}`,
       name: regName,
@@ -992,7 +971,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
 // ----------------------------------------------------------------------
 // 7. HOME SUB-PAGE / FACULTY DASHBOARD COMPONENT
 // ----------------------------------------------------------------------
-function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
+function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings, showToast }) {
   return (
     <div className="flex-1 bg-slate-950 text-white p-6 lg:p-10 overflow-y-auto font-sans selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -1055,7 +1034,7 @@ function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center gap-4">
             <div className="p-3.5 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
             <div>
@@ -1067,7 +1046,7 @@ function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center gap-4">
             <div className="p-3.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 01-2-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
             </div>
             <div>
@@ -1155,10 +1134,18 @@ function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
                 </p>
               </div>
               <button
-                onClick={() => onNavigateCenter('oversight')}
+                onClick={() => {
+                  if (currentUser.role === 'hod' || currentUser.role === 'principal') {
+                    onNavigateCenter('oversight');
+                  } else if (showToast) {
+                    showToast('🔒 Access Restricted: Only HODs and Principals can send faculty paper requests.', 'info');
+                  } else {
+                    alert('Only HODs and Principals can send faculty paper requests.');
+                  }
+                }}
                 className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/30 transition-all"
               >
-                Open Dept Oversight →
+                {currentUser.role === 'hod' || currentUser.role === 'principal' ? 'Open Dept Oversight →' : 'HOD / Principal Only 🔒'}
               </button>
             </div>
           </div>
@@ -1258,10 +1245,10 @@ function Navbar({
             ACADEMIC PORTAL
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
-            Engineering Notes Hub
+            {currentUser.collegeName || 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)'}
           </h1>
           <p className="text-xs font-semibold text-blue-100/90 tracking-wide mt-0.5">
-            {currentUser.collegeName || 'NMIET'} Study Materials, Question Banks, and Assignments
+            Academic Portal • Study Materials, Question Banks, and Exam Generator
           </p>
         </div>
 
@@ -2339,13 +2326,15 @@ function DepartmentOversightView({ currentUser, facultyPapers, onRequestPaper })
                         <button className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg text-xs">
                           View Paper PDF 👁️
                         </button>
-                      ) : (
+                      ) : (currentUser.role === 'hod' || currentUser.role === 'principal') ? (
                         <button
                           onClick={() => onRequestPaper(fp.id, fp.facultyName, fp.subject)}
                           className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs shadow-md shadow-blue-600/30"
                         >
                           📩 Request Faculty to Generate
                         </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-medium">Pending Generation</span>
                       )}
                     </td>
                   </tr>
@@ -2786,51 +2775,10 @@ function MainAppContainer() {
     }
   };
 
-  const handleSwapQuestion = async (qId, qDifficulty) => {
+  const handleSwapQuestion = (qId, qDifficulty) => {
     setSwappingQuestionId(qId);
-
-    let targetQuestion = null;
-    sections.forEach(sec => {
-      const q = sec.questions?.find(item => item.id === qId);
-      if (q) targetQuestion = q;
-    });
-
-    try {
-      const response = await fetch('http://localhost:5000/api/swap-question', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentQuestion: targetQuestion,
-          subject: header.subject,
-          difficulty: qDifficulty,
-          type: targetQuestion?.type || 'short'
-        })
-      });
-
-      const data = await response.json();
-      if (data.success && data.question) {
-        const newQ = data.question;
-        setSections(prevSections =>
-          prevSections.map(sec => ({
-            ...sec,
-            questions: sec.questions.map(q => {
-              if (q.id === qId) {
-                return {
-                  ...q,
-                  text: newQ.text,
-                  options: newQ.options || q.options,
-                  answerKey: newQ.answerKey || q.answerKey
-                };
-              }
-              return q;
-            })
-          }))
-        );
-        showToast('🔄 Question swapped live via Gemini API!');
-      } else {
-        throw new Error(data.error || 'Failed to swap question');
-      }
-    } catch (err) {
+    
+    setTimeout(() => {
       const pool = QUESTION_POOL[qDifficulty] || QUESTION_POOL.easy;
       const randomQ = pool[Math.floor(Math.random() * pool.length)];
 
@@ -2850,10 +2798,10 @@ function MainAppContainer() {
           })
         }))
       );
-      showToast('🔄 Swapped from local fallback bank.');
-    } finally {
+
       setSwappingQuestionId(null);
-    }
+      showToast('🔄 Question swapped with alternative variant from item bank!');
+    }, 600);
   };
 
   const handleEditQuestion = (qId, newText) => {
@@ -2864,36 +2812,6 @@ function MainAppContainer() {
       }))
     );
     showToast('Question updated successfully!');
-  };
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSaveToSupabase = async () => {
-    setIsSaving(true);
-    try {
-      const response = await fetch('http://localhost:5000/api/save-exam', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: `${header.subject} (${header.standard})`,
-          header: header,
-          sections: sections,
-          difficulty: difficulty
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        showToast('☁️ Exam Paper saved successfully to Supabase cloud database!');
-      } else {
-        throw new Error(data.error || 'Failed to save to Supabase');
-      }
-    } catch (err) {
-      console.error('Supabase Save Error:', err);
-      showToast(`❌ Cloud Save: ${err.message}`, 'error');
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleQuickPrint = () => {
@@ -2926,8 +2844,6 @@ function MainAppContainer() {
         onSelectPreset={handleSelectPreset}
         onOpenExportModal={() => setExportModalOpen(true)}
         onQuickPrint={handleQuickPrint}
-        onSaveToSupabase={handleSaveToSupabase}
-        isSaving={isSaving}
       />
 
       {/* Main Center Views Switcher */}
@@ -2936,6 +2852,7 @@ function MainAppContainer() {
           currentUser={currentUser}
           onNavigateCenter={setActiveCenterTab}
           onOpenSettings={() => setSettingsModalOpen(true)}
+          showToast={showToast}
         />
       )}
 
