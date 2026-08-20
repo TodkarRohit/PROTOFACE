@@ -260,6 +260,8 @@ app.get('/api/saved-exams', async (req, res) => {
   }
 });
 
+const REGISTERED_USERS_DB = [];
+
 // Endpoint 5: User Registration Endpoint (Supabase / Local)
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -270,6 +272,22 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const roleTitle = role === 'teacher' ? 'Subject Teacher' : role === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean';
+
+    const newUser = {
+      id: `usr-${Date.now()}`,
+      name,
+      username,
+      email,
+      password,
+      role,
+      roleTitle,
+      collegeName: collegeName || 'NMIET',
+      branch: branch || 'General',
+      subject: subject || 'General',
+      allowedSubjects: [subject || 'General']
+    };
+
+    REGISTERED_USERS_DB.push(newUser);
 
     if (supabase) {
       try {
@@ -286,36 +304,12 @@ app.post('/api/auth/register', async (req, res) => {
 
         if (!error && data?.length) {
           const u = data[0];
-          return res.json({
-            success: true,
-            user: {
-              id: u.id,
-              name: u.name,
-              username: u.username,
-              email: u.email,
-              role: u.role,
-              roleTitle: u.role_title,
-              collegeName: u.college_name,
-              branch: u.branch,
-              subject: u.subject,
-              allowedSubjects: [u.subject]
-            }
-          });
+          newUser.id = u.id;
         }
       } catch (err) {
         console.warn('Supabase users table insert notice:', err.message);
       }
     }
-
-    // Fallback return registered user object
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      name, username, email, role, roleTitle,
-      collegeName: collegeName || 'NMIET',
-      branch: branch || 'General',
-      subject: subject || 'General',
-      allowedSubjects: [subject || 'General']
-    };
 
     res.json({ success: true, user: newUser });
   } catch (error) {
@@ -329,6 +323,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { usernameInput, passwordInput } = req.body;
 
+    // 1. Check Supabase
     if (supabase) {
       try {
         const { data, error } = await supabase
@@ -356,6 +351,17 @@ app.post('/api/auth/login', async (req, res) => {
       } catch (err) {
         console.warn('Supabase login check fallback:', err.message);
       }
+    }
+
+    // 2. Check local memory registry
+    const match = REGISTERED_USERS_DB.find(
+      u => (u.username.toLowerCase() === usernameInput?.trim().toLowerCase() ||
+            u.email.toLowerCase() === usernameInput?.trim().toLowerCase()) &&
+           u.password === passwordInput
+    );
+
+    if (match) {
+      return res.json({ success: true, user: match });
     }
 
     res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
