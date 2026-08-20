@@ -774,7 +774,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans no-print" role="dialog">
       <div className="bg-slate-900 text-white rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl overflow-hidden p-6 space-y-5">
         
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -2303,6 +2303,16 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
 
   const handleDownload = () => {
     setIsExporting(true);
+
+    if (selectedFormat === 'pdf') {
+      setIsExporting(false);
+      onClose();
+      setTimeout(() => {
+        window.print();
+      }, 150);
+      return;
+    }
+
     setTimeout(() => {
       const text = generatePlainText();
       let mimeType = 'text/plain';
@@ -2313,29 +2323,22 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
         extension = 'doc';
       }
 
-      if (selectedFormat === 'pdf') {
-        window.print();
-        setIsExporting(false);
-        onClose();
-        return;
-      }
-
       const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${header.subject || 'Exam'}_Paper_${selectedFormat.toUpperCase()}.${extension}`;
+      link.download = `${(header.subject || 'Exam_Paper').replace(/[^a-zA-Z0-9]/g, '_')}_Paper_${selectedFormat.toUpperCase()}.${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       setIsExporting(false);
       onClose();
-    }, 600);
+    }, 400);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans no-print" role="dialog">
       <div className="bg-slate-900 text-white rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl overflow-hidden p-6 space-y-5">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
@@ -2707,7 +2710,7 @@ function MainAppContainer() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce-in">
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce-in no-print">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold backdrop-blur-md ${
             toastMessage.type === 'info'
               ? 'bg-slate-800/95 border-slate-700 text-slate-200'
