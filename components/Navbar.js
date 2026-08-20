@@ -7,7 +7,9 @@ export function Navbar({
   activePresetId, 
   onSelectPreset,
   onOpenExportModal,
-  onQuickPrint 
+  onQuickPrint,
+  onSaveToSupabase,
+  isSaving
 }) {
   return (
     <header className="sticky top-0 z-30 bg-slate-900 border-b border-slate-800 text-white shadow-lg">
@@ -83,6 +85,19 @@ export function Navbar({
               Teacher Answer Key
             </button>
           </div>
+
+          {/* Save to Supabase Cloud Button */}
+          <button
+            onClick={onSaveToSupabase}
+            disabled={isSaving}
+            title="Save exam to Supabase Cloud Database"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/90 hover:bg-emerald-500 text-white border border-emerald-400/40 transition-colors shadow-sm shadow-emerald-600/20"
+          >
+            <svg className="w-4 h-4 text-emerald-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            {isSaving ? 'Saving...' : 'Save to Supabase'}
+          </button>
 
           {/* Quick Print Button */}
           <button
