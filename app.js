@@ -1,15 +1,60 @@
-// ExamCraft AI - Complete Standalone React Application for GitHub Pages
+// ExamCraft AI - Standalone React App with Login, RBAC, and College Binding
 const { useState, useEffect } = React;
 
 // ----------------------------------------------------------------------
-// 1. MOCK DATA BANK
+// 1. MOCK USER DATABASE (TEACHERS, HODs, PRINCIPALS)
+// ----------------------------------------------------------------------
+const MOCK_USERS = [
+  {
+    id: 'usr-1',
+    name: 'Dr. Rahul Sharma',
+    username: 'rahul_physics',
+    password: 'password123',
+    email: 'rahul.sharma@nmiet.edu.in',
+    role: 'teacher', // 'teacher' | 'hod' | 'principal'
+    roleTitle: 'Subject Teacher',
+    collegeName: 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)',
+    branch: 'Basic Sciences & Physics',
+    subject: 'Physics (Science Paper I)',
+    allowedSubjects: ['Physics (Science Paper I)']
+  },
+  {
+    id: 'usr-2',
+    name: 'Prof. Anjali Verma',
+    username: 'anjali_hod',
+    password: 'password123',
+    email: 'anjali.verma@nmiet.edu.in',
+    role: 'hod',
+    roleTitle: 'Head of Department (HOD)',
+    collegeName: 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)',
+    branch: 'Computer Engineering & Science',
+    subject: 'Computer Dept (Data Structures, OS, AI, Networks)',
+    allowedSubjects: ['Physics (Science Paper I)', 'Chemistry (Paper II)', 'Data Structures & Algorithms', 'Operating Systems']
+  },
+  {
+    id: 'usr-3',
+    name: 'Dr. S. K. Kulkarni',
+    username: 'principal_nmiet',
+    password: 'password123',
+    email: 'principal@nmiet.edu.in',
+    role: 'principal',
+    roleTitle: 'Principal / Dean',
+    collegeName: 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)',
+    branch: 'All Academic Branches',
+    subject: 'All College Subjects',
+    allowedSubjects: ['Physics (Science Paper I)', 'Chemistry (Paper II)', 'Data Structures & Algorithms', 'Operating Systems', 'Mathematics - Calculus']
+  }
+];
+
+// ----------------------------------------------------------------------
+// 2. PRESET EXAMS BANK
 // ----------------------------------------------------------------------
 const PRESET_EXAMS = [
   {
     id: 'physics-10',
     name: 'Physics: Gravitation & Motion (Std X)',
     header: {
-      schoolName: "ST. XAVIER'S HIGH SCHOOL & JR. COLLEGE",
+      schoolName: 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)',
       subHeader: 'FIRST TERM EXAMINATION - 2026-27',
       standard: 'STD X (Grade 10)',
       division: 'Div A & B',
@@ -199,7 +244,7 @@ const PRESET_EXAMS = [
     id: 'chemistry-12',
     name: 'Chemistry: Organic Compounds & Kinetics (Std XII)',
     header: {
-      schoolName: 'ROYAL ACADEMY OF SCIENCE & TECHNOLOGY',
+      schoolName: 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)',
       subHeader: 'PRE-BOARD EXAMINATION - 2026-27',
       standard: 'STD XII (Grade 12)',
       division: 'Batch A',
@@ -283,14 +328,6 @@ const QUESTION_POOL = {
         solution: 'Ampere (A) measures rate of flow of electric charge.',
         rubric: '1 Mark.'
       }
-    },
-    {
-      text: 'Define Inertia of Rest with a daily life example.',
-      options: [],
-      answerKey: {
-        solution: 'The inherent property of a body to resist any change in its state of rest. Example: Passengers jerk backwards when a bus starts suddenly.',
-        rubric: '1 Mark definition, 1 Mark example.'
-      }
     }
   ],
   medium: [
@@ -300,14 +337,6 @@ const QUESTION_POOL = {
       answerKey: {
         solution: 'E = 0.5 * m * v². Multiply numerator and denominator by m: E = (m²v²) / 2m = p² / 2m. Therefore p = √(2mE).',
         rubric: '1 Mark formula, 2 Marks derivation.'
-      }
-    },
-    {
-      text: 'A car accelerates uniformly from 18 km/h to 36 km/h in 5 seconds. Calculate the acceleration and distance covered.',
-      options: [],
-      answerKey: {
-        solution: 'u = 5 m/s, v = 10 m/s, t = 5 s. a = (v-u)/t = 1 m/s². s = ut + 0.5at² = 25 + 12.5 = 37.5 meters.',
-        rubric: '1.5 Marks for acceleration, 1.5 Marks for distance.'
       }
     }
   ],
@@ -319,22 +348,332 @@ const QUESTION_POOL = {
         solution: 'Orbital velocity v = √(GM/r).\nKinetic Energy KE = 0.5 * m * v² = GMm / 2r.\nPotential Energy PE = -GMm / r.\nTotal Energy E = KE + PE = -GMm / 2r.',
         rubric: '1.5 Marks KE, 1.5 Marks PE, 2 Marks Total Energy.'
       }
-    },
-    {
-      text: 'Two bodies of masses 10 kg and 20 kg are connected by a light inextensible string passing over a frictionless pulley. Calculate acceleration of the system and tension in the string.',
-      options: [],
-      answerKey: {
-        solution: 'a = (m2 - m1)g / (m1 + m2) = (20-10)*9.8 / 30 = 3.27 m/s².\nT = 2*m1*m2*g / (m1+m2) = 2*10*20*9.8 / 30 = 130.67 N.',
-        rubric: '2.5 Marks acceleration, 2.5 Marks tension.'
-      }
     }
   ]
 };
 
 // ----------------------------------------------------------------------
-// 2. NAVBAR COMPONENT
+// 3. LOGIN & REGISTRATION COMPONENT
+// ----------------------------------------------------------------------
+function LoginScreen({ onLoginSuccess }) {
+  const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register'
+  
+  // Login Form State
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Register Form State
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState('teacher');
+  const [regCollege, setRegCollege] = useState('NMIET (Nutan Maharashtra Institute of Engineering & Technology)');
+  const [regBranch, setRegBranch] = useState('Computer Engineering');
+  const [regSubject, setRegSubject] = useState('Physics (Science Paper I)');
+
+  // Handle Login Submit
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    const user = MOCK_USERS.find(
+      u => (u.username.toLowerCase() === usernameInput.trim().toLowerCase() || 
+            u.email.toLowerCase() === usernameInput.trim().toLowerCase()) &&
+           u.password === passwordInput
+    );
+
+    if (user) {
+      onLoginSuccess(user);
+    } else {
+      setErrorMessage('Invalid username/email or password. Try quick demo login buttons below!');
+    }
+  };
+
+  // Quick Demo Login Handler
+  const handleQuickDemoLogin = (userId) => {
+    const user = MOCK_USERS.find(u => u.id === userId);
+    if (user) {
+      onLoginSuccess(user);
+    }
+  };
+
+  // Handle Registration Submit
+  const handleRegister = (e) => {
+    e.preventDefault();
+    if (!regName || !regEmail || !regUsername || !regPassword) {
+      setErrorMessage('Please fill in all required registration fields.');
+      return;
+    }
+
+    const newUser = {
+      id: `usr-${Date.now()}`,
+      name: regName,
+      username: regUsername,
+      email: regEmail,
+      password: regPassword,
+      role: regRole,
+      roleTitle: regRole === 'teacher' ? 'Subject Teacher' : regRole === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean',
+      collegeName: regCollege,
+      branch: regBranch,
+      subject: regSubject,
+      allowedSubjects: [regSubject]
+    };
+
+    MOCK_USERS.push(newUser);
+    onLoginSuccess(newUser);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4 font-sans selection:bg-blue-600 selection:text-white">
+      
+      {/* Background Glow Overlay */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
+        <div className="w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px] -translate-y-20"></div>
+        <div className="w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[100px] translate-x-40"></div>
+      </div>
+
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-10 p-6 sm:p-8 space-y-6">
+        
+        {/* Brand Header */}
+        <div className="text-center space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-purple-600 mx-auto flex items-center justify-center shadow-lg shadow-blue-600/30">
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight">ExamCraft AI</h1>
+          <p className="text-xs text-slate-400 font-medium">Faculty Portal & Assessment Management System</p>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+          <button
+            onClick={() => { setActiveTab('login'); setErrorMessage(''); }}
+            className={`flex-1 py-2 rounded-lg transition-colors ${
+              activeTab === 'login' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            onClick={() => { setActiveTab('register'); setErrorMessage(''); }}
+            className={`flex-1 py-2 rounded-lg transition-colors ${
+              activeTab === 'register' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Register Faculty
+          </button>
+        </div>
+
+        {/* Error Alert */}
+        {errorMessage && (
+          <div className="p-3 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-200 text-xs font-medium flex items-center gap-2">
+            <svg className="w-4 h-4 text-rose-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {/* SIGN IN FORM */}
+        {activeTab === 'login' ? (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Username or Email</label>
+              <input
+                type="text"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="e.g. rahul_physics or rahul@nmiet.edu.in"
+                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all"
+            >
+              Sign In to Portal
+            </button>
+          </form>
+        ) : (
+          /* REGISTRATION FORM */
+          <form onSubmit={handleRegister} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={regName}
+                  onChange={(e) => setRegName(e.target.value)}
+                  placeholder="Prof. Jane Doe"
+                  className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="jane@nmiet.edu.in"
+                  className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Username</label>
+                <input
+                  type="text"
+                  value={regUsername}
+                  onChange={(e) => setRegUsername(e.target.value)}
+                  placeholder="jane_comp"
+                  className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Position / Role Selector */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Faculty Position / Role</label>
+              <select
+                value={regRole}
+                onChange={(e) => setRegRole(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="teacher">Subject Teacher (Restricted to assigned subject)</option>
+                <option value="hod">HOD (Head of Dept - Access to all CS/Dept subjects)</option>
+                <option value="principal">Principal / Dean (Access to all college branches)</option>
+              </select>
+            </div>
+
+            {/* College Name Select */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Institution / College Name</label>
+              <input
+                type="text"
+                value={regCollege}
+                onChange={(e) => setRegCollege(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. NMIET"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Branch / Dept</label>
+                <input
+                  type="text"
+                  value={regBranch}
+                  onChange={(e) => setRegBranch(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Primary Subject</label>
+                <input
+                  type="text"
+                  value={regSubject}
+                  onChange={(e) => setRegSubject(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all mt-2"
+            >
+              Complete Registration & Sign In
+            </button>
+          </form>
+        )}
+
+        {/* QUICK DEMO LOGIN SHORTCUTS */}
+        <div className="border-t border-slate-800 pt-4 space-y-2">
+          <p className="text-[11px] font-semibold text-slate-400 text-center uppercase tracking-wider">
+            Quick Demo Login Accounts (NMIET):
+          </p>
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => handleQuickDemoLogin('usr-1')}
+              className="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left flex items-center justify-between text-xs transition-colors"
+            >
+              <div>
+                <p className="font-bold text-blue-400">Dr. Rahul Sharma (NMIET Physics Teacher)</p>
+                <p className="text-[10px] text-slate-400">Role: Subject Teacher • Subject Restricted</p>
+              </div>
+              <span className="text-[10px] bg-blue-900/60 text-blue-300 font-mono px-2 py-0.5 rounded">Login →</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleQuickDemoLogin('usr-2')}
+              className="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left flex items-center justify-between text-xs transition-colors"
+            >
+              <div>
+                <p className="font-bold text-purple-400">Prof. Anjali Verma (NMIET HOD - Computer)</p>
+                <p className="text-[10px] text-slate-400">Role: HOD • Access to all Dept Subjects & Classes</p>
+              </div>
+              <span className="text-[10px] bg-purple-900/60 text-purple-300 font-mono px-2 py-0.5 rounded">Login →</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleQuickDemoLogin('usr-3')}
+              className="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left flex items-center justify-between text-xs transition-colors"
+            >
+              <div>
+                <p className="font-bold text-emerald-400">Dr. S. K. Kulkarni (NMIET Principal)</p>
+                <p className="text-[10px] text-slate-400">Role: Principal • Institution-wide Administrative Access</p>
+              </div>
+              <span className="text-[10px] bg-emerald-900/60 text-emerald-300 font-mono px-2 py-0.5 rounded">Login →</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// 4. NAVBAR COMPONENT WITH PROFILE & COLLEGE HEADER
 // ----------------------------------------------------------------------
 function Navbar({ 
+  currentUser,
+  onLogout,
   viewMode, 
   setViewMode, 
   presetExams, 
@@ -347,7 +686,7 @@ function Navbar({
     <header className="sticky top-0 z-30 bg-slate-900 border-b border-slate-800 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         
-        {/* Brand Logo & Name */}
+        {/* Brand Logo & Logged-In College Context */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/20">
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -356,21 +695,24 @@ function Navbar({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-lg leading-tight tracking-tight text-white">ExamCraft AI</h1>
-              <span className="px-2 py-0.5 text-[10px] font-semibold bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full uppercase tracking-wider">
-                Pro v2.4
+              <h1 className="font-bold text-base sm:text-lg leading-tight tracking-tight text-white">ExamCraft AI</h1>
+              {/* Logged in College Tag */}
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-900/80 text-blue-300 border border-blue-600/50 rounded-full uppercase tracking-wider truncate max-w-[200px] sm:max-w-[280px]">
+                🏫 {currentUser.collegeName || 'NMIET'}
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-medium">Smart Assessment & Paper Generator for Educators</p>
+            <p className="text-[11px] text-slate-400 font-medium">
+              Faculty Portal • {currentUser.branch} ({currentUser.roleTitle})
+            </p>
           </div>
         </div>
 
         {/* Preset Selector */}
-        <div className="hidden md:flex items-center gap-2 bg-slate-800/80 p-1.5 rounded-lg border border-slate-700/60">
-          <svg className="w-4 h-4 text-indigo-400 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="hidden lg:flex items-center gap-2 bg-slate-800/80 p-1.5 rounded-lg border border-slate-700/60">
+          <svg className="w-4 h-4 text-indigo-400 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
-          <span className="text-xs font-semibold text-slate-300">Preset Template:</span>
+          <span className="text-xs font-semibold text-slate-300">Exam Template:</span>
           <select 
             value={activePresetId}
             onChange={(e) => onSelectPreset(e.target.value)}
@@ -384,10 +726,10 @@ function Navbar({
           </select>
         </div>
 
-        {/* Action Controls Right */}
+        {/* Action Controls & Profile Badge */}
         <div className="flex items-center gap-3">
           
-          {/* Student Paper vs Teacher Answer Key Toggle Switch */}
+          {/* Student Paper vs Teacher Answer Key Toggle */}
           <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
             <button
               onClick={() => setViewMode('student')}
@@ -418,28 +760,33 @@ function Navbar({
             </button>
           </div>
 
-          {/* Quick Print Button */}
-          <button
-            onClick={onQuickPrint}
-            title="Print A4 Paper"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 transition-colors"
-          >
-            <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Print
-          </button>
-
           {/* Export Options Button */}
           <button
             onClick={onOpenExportModal}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-md shadow-blue-600/20 border border-blue-500/40 transition-all transform active:scale-95"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-md shadow-blue-600/20 border border-blue-500/40 transition-all transform active:scale-95"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            Export Document
+            Export
           </button>
+
+          {/* User Profile & Logout Button */}
+          <div className="flex items-center gap-2 bg-slate-800 p-1 pl-2.5 rounded-xl border border-slate-700">
+            <div className="text-right text-[11px] hidden sm:block">
+              <p className="font-bold text-white leading-tight">{currentUser.name}</p>
+              <p className="text-[10px] text-indigo-300 font-semibold">{currentUser.roleTitle}</p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="p-1.5 bg-slate-700 hover:bg-rose-600 text-slate-300 hover:text-white rounded-lg transition-colors"
+              title="Sign Out"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
 
         </div>
 
@@ -449,9 +796,10 @@ function Navbar({
 }
 
 // ----------------------------------------------------------------------
-// 3. CONTROLS PANEL COMPONENT
+// 5. CONTROLS PANEL COMPONENT
 // ----------------------------------------------------------------------
 function ControlsPanel({
+  currentUser,
   header,
   onUpdateHeader,
   difficulty,
@@ -554,7 +902,7 @@ function ControlsPanel({
             Paper Setup & AI Controls
           </h2>
           <span className="text-[11px] bg-blue-900/60 text-blue-300 font-semibold px-2 py-0.5 rounded border border-blue-700/50">
-            Step 1 of 2
+            {currentUser.roleTitle}
           </span>
         </div>
         <p className="text-xs text-slate-400 mt-1">Configure exam parameters, syllabus context, and cognitive difficulty weighting.</p>
@@ -566,7 +914,7 @@ function ControlsPanel({
           <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
-          Exam Header & Metadata
+          Exam Header & Institution
         </div>
 
         <div className="space-y-3">
@@ -576,8 +924,8 @@ function ControlsPanel({
               type="text"
               value={header.schoolName}
               onChange={(e) => onUpdateHeader('schoolName', e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g. St. Xavier's High School"
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+              placeholder="e.g. NMIET"
             />
           </div>
 
@@ -599,7 +947,7 @@ function ControlsPanel({
                 type="text"
                 value={header.standard}
                 onChange={(e) => onUpdateHeader('standard', e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="STD X"
               />
             </div>
@@ -609,7 +957,7 @@ function ControlsPanel({
                 type="text"
                 value={header.division}
                 onChange={(e) => onUpdateHeader('division', e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Div A & B"
               />
             </div>
@@ -619,7 +967,7 @@ function ControlsPanel({
                 type="text"
                 value={header.subject}
                 onChange={(e) => onUpdateHeader('subject', e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
                 placeholder="Physics"
               />
             </div>
@@ -970,7 +1318,7 @@ function ControlsPanel({
 }
 
 // ----------------------------------------------------------------------
-// 4. A4 PREVIEW PANEL COMPONENT
+// 6. A4 PREVIEW PANEL COMPONENT
 // ----------------------------------------------------------------------
 function A4PreviewPanel({
   header,
@@ -1276,7 +1624,7 @@ function A4PreviewPanel({
 }
 
 // ----------------------------------------------------------------------
-// 5. EXPORT MODAL COMPONENT
+// 7. EXPORT MODAL COMPONENT
 // ----------------------------------------------------------------------
 function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
   const [selectedFormat, setSelectedFormat] = useState('pdf');
@@ -1405,7 +1753,7 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
               }`}
             >
               <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span className="text-xs font-bold">MS Word (.docx)</span>
             </button>
@@ -1419,7 +1767,7 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
               }`}
             >
               <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span className="text-xs font-bold">Plain Text (.txt)</span>
             </button>
@@ -1475,9 +1823,11 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
 }
 
 // ----------------------------------------------------------------------
-// 6. MAIN APP ROOT COMPONENT
+// 8. MASTER APPLICATION CONTAINER (MANAGES AUTH & WORKSPACE)
 // ----------------------------------------------------------------------
-function App() {
+function MainAppContainer() {
+  const [currentUser, setCurrentUser] = useState(null); // null = Not logged in
+
   const initialPreset = PRESET_EXAMS[0];
 
   const [activePresetId, setActivePresetId] = useState(initialPreset.id);
@@ -1493,6 +1843,23 @@ function App() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Handle Successful Login
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    // Bind Logged-in College Name to Header
+    setHeader(prev => ({
+      ...prev,
+      schoolName: user.collegeName || 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)',
+      subject: user.subject || prev.subject
+    }));
+    showToast(`Welcome back, ${user.name}! Bound to ${user.collegeName}`);
+  };
+
+  // Handle Logout
+  const handleLogout = () => {
+    setCurrentUser(null);
+  };
+
   const showToast = (msg, type = 'success') => {
     setToastMessage({ msg, type });
     setTimeout(() => {
@@ -1504,11 +1871,14 @@ function App() {
     const selected = PRESET_EXAMS.find(p => p.id === presetId);
     if (selected) {
       setActivePresetId(selected.id);
-      setHeader(selected.header);
+      setHeader({
+        ...selected.header,
+        schoolName: currentUser ? currentUser.collegeName : selected.header.schoolName
+      });
       setDifficulty(selected.difficulty);
       setSources(selected.sources);
       setSections(selected.sections);
-      showToast(`Loaded preset template: ${selected.name}`);
+      showToast(`Loaded exam template: ${selected.name}`);
     }
   };
 
@@ -1590,20 +1960,39 @@ function App() {
     window.print();
   };
 
+  // If user is not logged in, show Login Screen
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Filter accessible preset exams according to user role & permission
+  const accessiblePresets = PRESET_EXAMS.filter(preset => {
+    if (currentUser.role === 'principal') return true; // Principal sees all
+    if (currentUser.role === 'hod') return true; // HOD sees all branch subjects
+    // Subject teacher sees only their allowed subject
+    return currentUser.allowedSubjects.includes(preset.header.subject);
+  });
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      
+      {/* Top Navbar with Profile */}
       <Navbar
+        currentUser={currentUser}
+        onLogout={handleLogout}
         viewMode={viewMode}
         setViewMode={setViewMode}
-        presetExams={PRESET_EXAMS}
+        presetExams={accessiblePresets.length > 0 ? accessiblePresets : PRESET_EXAMS}
         activePresetId={activePresetId}
         onSelectPreset={handleSelectPreset}
         onOpenExportModal={() => setExportModalOpen(true)}
         onQuickPrint={handleQuickPrint}
       />
 
+      {/* Main Workspace */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         <ControlsPanel
+          currentUser={currentUser}
           header={header}
           onUpdateHeader={handleUpdateHeader}
           difficulty={difficulty}
@@ -1626,6 +2015,7 @@ function App() {
         />
       </div>
 
+      {/* Export Options Modal */}
       <ExportModal
         isOpen={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
@@ -1634,6 +2024,7 @@ function App() {
         viewMode={viewMode}
       />
 
+      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-in">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold backdrop-blur-md ${
@@ -1648,6 +2039,7 @@ function App() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
@@ -1655,4 +2047,4 @@ function App() {
 // Render to DOM
 const rootElement = document.getElementById('root');
 const root = ReactDOM.createRoot(rootElement);
-root.render(<App />);
+root.render(<MainAppContainer />);
