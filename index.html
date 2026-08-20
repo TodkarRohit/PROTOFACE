@@ -49,20 +49,29 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   
-  <!-- Babel Standalone for inline JSX execution -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Module shim for browser execution -->
+  <script>
+    window.require = function(name) {
+      if (name === 'react') return window.React;
+      if (name === 'react-dom') return window.ReactDOM;
+      throw new Error('Unknown module: ' + name);
+    };
+  </script>
+  
+  <!-- Application Bundle -->
+  <script src="./bundle.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
 
   <!-- App Mount Root -->
   <div id="root"></div>
 
-  <!-- Entry Script -->
-  <script type="text/babel" data-type="module">
-    import App from './app.js';
+  <!-- App Mount Script -->
+  <script>
+    const App = AppBundle.default || AppBundle;
     const rootElement = document.getElementById('root');
     const root = ReactDOM.createRoot(rootElement);
-    root.render(<App />);
+    root.render(React.createElement(App));
   </script>
 
 </body>

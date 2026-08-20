@@ -65,22 +65,177 @@ export default function App() {
     showToast('Source removed', 'info');
   };
 
-  // AI Full Exam Generation Simulation
-  const handleGeneratePaper = () => {
+  // AI Full Exam Generation via Live Backend API
+  const handleGeneratePaper = async () => {
     setIsGenerating(true);
-    setGenerationProgress('1/3 Analyzing syllabus & weightings...');
+    setGenerationProgress('1/3 Connecting to AI backend server...');
 
-    setTimeout(() => {
-      setGenerationProgress('2/3 Generating cognitive questions...');
-      setTimeout(() => {
-        setGenerationProgress('3/3 Structuring A4 document layout...');
-        setTimeout(() => {
-          setIsGenerating(false);
-          setGenerationProgress('');
-          showToast('✨ AI Exam Paper generated successfully with optimal cognitive balance!');
-        }, 800);
-      }, 900);
-    }, 900);
+    try {
+      const totalQuestions = 8; // Number of questions to generate
+      const totalMarks = Number(header.totalMarks) || 30;
+
+      // Calculate difficulty counts from slider percentages
+      const easyPct = Number(difficulty.easy) || 30;
+      const medPct = Number(difficulty.medium) || 50;
+
+      let easy = Math.max(1, Math.round((easyPct / 100) * totalQuestions));
+      let medium = Math.max(1, Math.round((medPct / 100) * totalQuestions));
+      let difficult = totalQuestions - (easy + medium);
+
+      if (difficult < 1) {
+        difficult = 1;
+        if (medium > 1) medium -= 1;
+        else if (easy > 1) easy -= 1;
+      }
+
+      setGenerationProgress('2/3 Generating cognitive questions with Gemini AI...');
+
+      // Include reference sources if any
+      const sourcesText = sources && sources.length > 0
+        ? ` (Syllabus reference: ${sources.map(s => s.name).join(', ')})`
+        : '';
+      const topicText = `${header.subHeader || 'Unit Syllabus'}${sourcesText}`;
+
+      const response = await fetch('http://localhost:5000/api/generate-paper', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subject: header.subject || 'Physics',
+          topic: topicText,
+          className: `${header.standard || 'Grade 10'} (${header.division || 'All'})`,
+          totalQuestions,
+          totalMarks,
+          difficulty: { easy, medium, difficult },
+          questionTypes: ['MCQ', 'Short Answer', 'Numerical']
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success || !data.paper) {
+        throw new Error(data.message || 'Failed to generate question paper from backend.');
+      }
+
+      setGenerationProgress('3/3 Formatting A4 document layout...');
+
+      const rawQuestions = data.paper.questions || [];
+
+      // Categorize into sections
+      const mcqQuestions = rawQuestions.filter(q => q.type === 'MCQ' || (q.options && q.options.length > 0));
+      const nonMcqQuestions = rawQuestions.filter(q => q.type !== 'MCQ' && (!q.options || q.options.length === 0));
+      const shortQuestions = nonMcqQuestions.filter(q => q.difficulty === 'easy' || q.difficulty === 'medium');
+      const hardQuestions = nonMcqQuestions.filter(q => q.difficulty === 'difficult' || q.difficulty === 'hard');
+
+      const formattedSections = [];
+      let qCounter = 1;
+
+      // Section A: MCQs
+      if (mcqQuestions.length > 0) {
+        formattedSections.push({
+          id: 'sec-a',
+          title: 'SECTION A: MULTIPLE CHOICE QUESTIONS',
+          subtitle: 'Select the correct alternative for each of the following questions.',
+          marksPerQuestion: mcqQuestions[0]?.marks || 1,
+          questions: mcqQuestions.map(q => ({
+            id: `ai-q-${qCounter}`,
+            number: String(qCounter++),
+            text: q.question,
+            type: 'mcq',
+            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
+            marks: q.marks || 1,
+            options: q.options && q.options.length > 0 ? q.options : ['A', 'B', 'C', 'D'],
+            answerKey: {
+              correctOption: q.correctAnswer || 'See explanation',
+              solution: q.explanation || 'Step-by-step solution provided by AI.',
+              rubric: `${q.marks || 1} Mark for the correct option selection.`
+            }
+          }))
+        });
+      }
+
+      // Section B: Short Answer
+      if (shortQuestions.length > 0) {
+        formattedSections.push({
+          id: 'sec-b',
+          title: 'SECTION B: SHORT ANSWER QUESTIONS',
+          subtitle: 'Answer the following questions briefly with scientific principles.',
+          marksPerQuestion: shortQuestions[0]?.marks || 2,
+          questions: shortQuestions.map(q => ({
+            id: `ai-q-${qCounter}`,
+            number: String(qCounter++),
+            text: q.question,
+            type: 'short',
+            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
+            marks: q.marks || 2,
+            options: [],
+            answerKey: {
+              correctOption: q.correctAnswer || 'Complete written answer',
+              solution: q.explanation || 'Detailed scientific explanation.',
+              rubric: `${q.marks || 2} Marks: Key concepts and reasoning.`
+            }
+          }))
+        });
+      }
+
+      // Section C: Long Answer / Numerical
+      if (hardQuestions.length > 0) {
+        formattedSections.push({
+          id: 'sec-c',
+          title: 'SECTION C: NUMERICAL & ANALYTICAL PROBLEMS',
+          subtitle: 'Solve with detailed step-by-step calculations and derivations.',
+          marksPerQuestion: hardQuestions[0]?.marks || 4,
+          questions: hardQuestions.map(q => ({
+            id: `ai-q-${qCounter}`,
+            number: String(qCounter++),
+            text: q.question,
+            type: 'long',
+            difficulty: 'hard',
+            marks: q.marks || 4,
+            options: [],
+            answerKey: {
+              correctOption: q.correctAnswer || 'Final calculated answer',
+              solution: q.explanation || 'Full derivation and calculations.',
+              rubric: `${q.marks || 4} Marks: Formula (1M) + Steps (2M) + Final Answer (1M).`
+            }
+          }))
+        });
+      }
+
+      // Fallback if not split
+      if (formattedSections.length === 0 && rawQuestions.length > 0) {
+        formattedSections.push({
+          id: 'sec-a',
+          title: 'SECTION A: COMPREHENSIVE QUESTIONS',
+          subtitle: 'Answer the following questions.',
+          marksPerQuestion: 2,
+          questions: rawQuestions.map(q => ({
+            id: `ai-q-${qCounter}`,
+            number: String(qCounter++),
+            text: q.question,
+            type: q.type === 'MCQ' ? 'mcq' : 'short',
+            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
+            marks: q.marks || 2,
+            options: q.options || [],
+            answerKey: {
+              correctOption: q.correctAnswer || 'Answer key',
+              solution: q.explanation || 'Explanation',
+              rubric: `${q.marks || 2} Marks.`
+            }
+          }))
+        });
+      }
+
+      setSections(formattedSections);
+      showToast('✨ AI Exam Paper generated successfully from live Gemini backend!');
+    } catch (err) {
+      console.error('Error generating paper:', err);
+      showToast(`⚠️ ${err.message}`, 'info');
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress('');
+    }
   };
 
   // Inline Question Refresh / Swap Simulation
