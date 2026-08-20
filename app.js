@@ -1,4 +1,4 @@
-// ExamCraft AI - Standalone React App with Login, RBAC, Settings, Notes, HOD Oversight & Home Sub-Page
+// ExamCraft AI - Final Unified Standalone React App
 const { useState, useEffect } = React;
 
 // Supabase Client Initialization (Direct Browser SDK for Live Deployment)
@@ -7,6 +7,22 @@ const SUPABASE_KEY = 'sb_publishable_KP_qZBwdO2YfUZrFe0EXjw_9a7-emIt';
 const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function')
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
+
+// ----------------------------------------------------------------------
+// 0. PRECONFIGURED INSTITUTES & COLLEGES LIST
+// ----------------------------------------------------------------------
+const COLLEGE_OPTIONS = [
+  'NMIET (Nutan Maharashtra Institute of Engineering & Technology, Pune)',
+  'COEP Technological University (College of Engineering, Pune)',
+  'VJTI (Veermata Jijabai Technological Institute, Mumbai)',
+  'PICT (Pune Institute of Computer Technology, Pune)',
+  'MIT World Peace University (MIT-WPU, Pune)',
+  'VIT (Vishwakarma Institute of Technology, Pune)',
+  'PCCOE (Pimpri Chinchwad College of Engineering, Pune)',
+  'SPPU (Savitribai Phule Pune University, Pune)',
+  'IIT Bombay (Indian Institute of Technology, Mumbai)',
+  'Other / Custom Institute...'
+];
 
 // ----------------------------------------------------------------------
 // 1. MOCK USER DATABASE (TEACHERS, HODs, PRINCIPALS)
@@ -459,11 +475,11 @@ function LoginScreen({ onLoginSuccess }) {
   const [regUsername, setRegUsername] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState('teacher');
-  const [regCollege, setRegCollege] = useState('NMIET (Nutan Maharashtra Institute of Engineering & Technology)');
+  const [regCollege, setRegCollege] = useState(COLLEGE_OPTIONS[0]);
+  const [customCollege, setCustomCollege] = useState('');
   const [regBranch, setRegBranch] = useState('Computer Engineering');
   const [regSubject, setRegSubject] = useState('Physics (Science Paper I)');
 
-  // Handle Login Submit
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
@@ -537,7 +553,6 @@ function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  // Handle Registration Submit
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!regName || !regEmail || !regUsername || !regPassword) {
@@ -545,7 +560,12 @@ function LoginScreen({ onLoginSuccess }) {
       return;
     }
 
+    const resolvedCollege = regCollege === 'Other / Custom Institute...' && customCollege.trim()
+      ? customCollege.trim()
+      : regCollege;
+
     const roleTitle = regRole === 'teacher' ? 'Subject Teacher' : regRole === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean';
+    
     const newUser = {
       id: `usr-${Date.now()}`,
       name: regName,
@@ -554,9 +574,55 @@ function LoginScreen({ onLoginSuccess }) {
       password: regPassword,
       role: regRole,
       roleTitle: roleTitle,
-      collegeName: regCollege,
+      collegeName: resolvedCollege,
       branch: regBranch,
       subject: regSubject,
+      allowedSubjects: [regSubject]
+    };
+
+    // 1. Write directly to Supabase Cloud from Browser
+    if (supabaseClient) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('users')
+          .insert([{
+            name: regName,
+            username: regUsername,
+            email: regEmail,
+            password: regPassword,
+            role: regRole,
+            role_title: roleTitle,
+            college_name: resolvedCollege,
+            branch: regBranch,
+            subject: regSubject
+          }])
+          .select();
+
+        if (!error && data?.length) {
+          newUser.id = data[0].id;
+          console.log('✅ Directly registered user into Supabase Cloud table!');
+        } else if (error) {
+          console.error('Supabase user insert error:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase browser registration notice:', err);
+      }
+    }
+
+    // 2. Try Node Backend API
+    try {
+      await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+    } catch (err) {
+      console.warn('Backend registration notice:', err);
+    }
+
+    MOCK_USERS.push(newUser);
+    onLoginSuccess(newUser);
+  };
       allowedSubjects: [regSubject]
     };
 
@@ -749,14 +815,30 @@ function LoginScreen({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Institution / College Name</label>
-              <input
-                type="text"
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Institution / College Name
+              </label>
+              <select
                 value={regCollege}
                 onChange={(e) => setRegCollege(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. NMIET"
-              />
+                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {COLLEGE_OPTIONS.map((college, idx) => (
+                  <option key={idx} value={college}>
+                    {college}
+                  </option>
+                ))}
+              </select>
+              {regCollege === 'Other / Custom Institute...' && (
+                <input
+                  type="text"
+                  value={customCollege}
+                  onChange={(e) => setCustomCollege(e.target.value)}
+                  placeholder="Type your College / Institute name..."
+                  className="w-full mt-1.5 bg-slate-950 border border-blue-500/70 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -838,13 +920,13 @@ function LoginScreen({ onLoginSuccess }) {
 }
 
 // ----------------------------------------------------------------------
-// 6. FACULTY SETTINGS MODAL
-// ----------------------------------------------------------------------
 function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) {
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [subject, setSubject] = useState(currentUser?.subject || '');
   const [branch, setBranch] = useState(currentUser?.branch || '');
+  const [collegeName, setCollegeName] = useState(currentUser?.collegeName || COLLEGE_OPTIONS[0]);
+  const [customCollege, setCustomCollege] = useState('');
   const [password, setPassword] = useState(currentUser?.password || '');
 
   useEffect(() => {
@@ -853,6 +935,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
       setEmail(currentUser.email);
       setSubject(currentUser.subject);
       setBranch(currentUser.branch);
+      setCollegeName(currentUser.collegeName || COLLEGE_OPTIONS[0]);
       setPassword(currentUser.password);
     }
   }, [currentUser]);
@@ -861,12 +944,17 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const resolvedCollege = collegeName === 'Other / Custom Institute...' && customCollege.trim()
+      ? customCollege.trim()
+      : collegeName;
+
     onSaveSettings({
       ...currentUser,
       name,
       email,
       subject,
       branch,
+      collegeName: resolvedCollege,
       password,
       allowedSubjects: Array.from(new Set([...currentUser.allowedSubjects, subject]))
     });
@@ -874,7 +962,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans no-print" role="dialog">
       <div className="bg-slate-900 text-white rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl overflow-hidden p-6 space-y-5">
         
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -907,6 +995,31 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
               className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Institution / College Name</label>
+            <select
+              value={collegeName}
+              onChange={(e) => setCollegeName(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {COLLEGE_OPTIONS.map((col, idx) => (
+                <option key={idx} value={col}>
+                  {col}
+                </option>
+              ))}
+            </select>
+            {collegeName === 'Other / Custom Institute...' && (
+              <input
+                type="text"
+                value={customCollege}
+                onChange={(e) => setCustomCollege(e.target.value)}
+                placeholder="Type your College / Institute name..."
+                className="w-full mt-1.5 bg-slate-950 border border-blue-500/70 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            )}
           </div>
 
           <div>
@@ -977,7 +1090,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
 // ----------------------------------------------------------------------
 // 7. HOME SUB-PAGE / FACULTY DASHBOARD COMPONENT
 // ----------------------------------------------------------------------
-function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
+function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings, showToast }) {
   return (
     <div className="flex-1 bg-slate-950 text-white p-6 lg:p-10 overflow-y-auto font-sans selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -1040,7 +1153,7 @@ function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center gap-4">
             <div className="p-3.5 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
             <div>
@@ -1052,7 +1165,7 @@ function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex items-center gap-4">
             <div className="p-3.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 01-2-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
             </div>
             <div>
@@ -1140,10 +1253,18 @@ function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
                 </p>
               </div>
               <button
-                onClick={() => onNavigateCenter('oversight')}
+                onClick={() => {
+                  if (currentUser.role === 'hod' || currentUser.role === 'principal') {
+                    onNavigateCenter('oversight');
+                  } else if (showToast) {
+                    showToast('🔒 Access Restricted: Only HODs and Principals can send faculty paper requests.', 'info');
+                  } else {
+                    alert('Only HODs and Principals can send faculty paper requests.');
+                  }
+                }}
                 className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/30 transition-all"
               >
-                Open Dept Oversight →
+                {currentUser.role === 'hod' || currentUser.role === 'principal' ? 'Open Dept Oversight →' : 'HOD / Principal Only 🔒'}
               </button>
             </div>
           </div>
@@ -1243,10 +1364,10 @@ function Navbar({
             ACADEMIC PORTAL
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
-            Engineering Notes Hub
+            {currentUser.collegeName || 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)'}
           </h1>
           <p className="text-xs font-semibold text-blue-100/90 tracking-wide mt-0.5">
-            {currentUser.collegeName || 'NMIET'} Study Materials, Question Banks, and Assignments
+            Academic Portal • Study Materials, Question Banks, and Exam Generator
           </p>
         </div>
 
@@ -2324,13 +2445,15 @@ function DepartmentOversightView({ currentUser, facultyPapers, onRequestPaper })
                         <button className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg text-xs">
                           View Paper PDF 👁️
                         </button>
-                      ) : (
+                      ) : (currentUser.role === 'hod' || currentUser.role === 'principal') ? (
                         <button
                           onClick={() => onRequestPaper(fp.id, fp.facultyName, fp.subject)}
                           className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs shadow-md shadow-blue-600/30"
                         >
                           📩 Request Faculty to Generate
                         </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-medium">Pending Generation</span>
                       )}
                     </td>
                   </tr>
@@ -2393,6 +2516,16 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
 
   const handleDownload = () => {
     setIsExporting(true);
+
+    if (selectedFormat === 'pdf') {
+      setIsExporting(false);
+      onClose();
+      setTimeout(() => {
+        window.print();
+      }, 150);
+      return;
+    }
+
     setTimeout(() => {
       const text = generatePlainText();
       let mimeType = 'text/plain';
@@ -2403,29 +2536,22 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
         extension = 'doc';
       }
 
-      if (selectedFormat === 'pdf') {
-        window.print();
-        setIsExporting(false);
-        onClose();
-        return;
-      }
-
       const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${header.subject || 'Exam'}_Paper_${selectedFormat.toUpperCase()}.${extension}`;
+      link.download = `${(header.subject || 'Exam_Paper').replace(/[^a-zA-Z0-9]/g, '_')}_Paper_${selectedFormat.toUpperCase()}.${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       setIsExporting(false);
       onClose();
-    }, 600);
+    }, 400);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans no-print" role="dialog">
       <div className="bg-slate-900 text-white rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl overflow-hidden p-6 space-y-5">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
@@ -2641,173 +2767,6 @@ function MainAppContainer() {
     showToast('Source removed', 'info');
   };
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-  // AI Full Exam Generation via Live Backend API
-  const handleGeneratePaper = async () => {
-=======
-  const handleGeneratePaper = () => {
->>>>>>> origin/main
-    setIsGenerating(true);
-    setGenerationProgress('1/3 Connecting to AI backend server...');
-
-    try {
-      const totalQuestions = 8; // Number of questions to generate
-      const totalMarks = Number(header.totalMarks) || 30;
-
-      // Calculate difficulty counts from slider percentages
-      const easyPct = Number(difficulty.easy) || 30;
-      const medPct = Number(difficulty.medium) || 50;
-
-      let easy = Math.max(1, Math.round((easyPct / 100) * totalQuestions));
-      let medium = Math.max(1, Math.round((medPct / 100) * totalQuestions));
-      let difficult = totalQuestions - (easy + medium);
-
-      if (difficult < 1) {
-        difficult = 1;
-        if (medium > 1) medium -= 1;
-        else if (easy > 1) easy -= 1;
-      }
-
-      setGenerationProgress('2/3 Generating cognitive questions with Gemini AI...');
-
-      // Include reference sources if any
-      const sourcesText = sources && sources.length > 0
-        ? ` (Syllabus reference: ${sources.map(s => s.name).join(', ')})`
-        : '';
-      const topicText = `${header.subHeader || 'Unit Syllabus'}${sourcesText}`;
-
-      const response = await fetch('http://localhost:5000/api/generate-paper', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          subject: header.subject || 'Physics',
-          topic: topicText,
-          className: `${header.standard || 'Grade 10'} (${header.division || 'All'})`,
-          totalQuestions,
-          totalMarks,
-          difficulty: { easy, medium, difficult },
-          questionTypes: ['MCQ', 'Short Answer', 'Numerical']
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success || !data.paper) {
-        throw new Error(data.message || 'Failed to generate question paper from backend.');
-      }
-
-      setGenerationProgress('3/3 Formatting A4 document layout...');
-
-      const rawQuestions = data.paper.questions || [];
-
-      // Categorize into sections
-      const mcqQuestions = rawQuestions.filter(q => q.type === 'MCQ' || (q.options && q.options.length > 0));
-      const nonMcqQuestions = rawQuestions.filter(q => q.type !== 'MCQ' && (!q.options || q.options.length === 0));
-      const shortQuestions = nonMcqQuestions.filter(q => q.difficulty === 'easy' || q.difficulty === 'medium');
-      const hardQuestions = nonMcqQuestions.filter(q => q.difficulty === 'difficult' || q.difficulty === 'hard');
-
-      const formattedSections = [];
-      let qCounter = 1;
-
-      // Section A: MCQs
-      if (mcqQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-a',
-          title: 'SECTION A: MULTIPLE CHOICE QUESTIONS',
-          subtitle: 'Select the correct alternative for each of the following questions.',
-          marksPerQuestion: mcqQuestions[0]?.marks || 1,
-          questions: mcqQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: 'mcq',
-            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-            marks: q.marks || 1,
-            options: q.options && q.options.length > 0 ? q.options : ['A', 'B', 'C', 'D'],
-            answerKey: {
-              correctOption: q.correctAnswer || 'See explanation',
-              solution: q.explanation || 'Step-by-step solution provided by AI.',
-              rubric: `${q.marks || 1} Mark for the correct option selection.`
-            }
-          }))
-        });
-      }
-
-      // Section B: Short Answer
-      if (shortQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-b',
-          title: 'SECTION B: SHORT ANSWER QUESTIONS',
-          subtitle: 'Answer the following questions briefly with scientific principles.',
-          marksPerQuestion: shortQuestions[0]?.marks || 2,
-          questions: shortQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: 'short',
-            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-            marks: q.marks || 2,
-            options: [],
-            answerKey: {
-              correctOption: q.correctAnswer || 'Complete written answer',
-              solution: q.explanation || 'Detailed scientific explanation.',
-              rubric: `${q.marks || 2} Marks: Key concepts and reasoning.`
-            }
-          }))
-        });
-      }
-
-      // Section C: Long Answer / Numerical
-      if (hardQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-c',
-          title: 'SECTION C: NUMERICAL & ANALYTICAL PROBLEMS',
-          subtitle: 'Solve with detailed step-by-step calculations and derivations.',
-          marksPerQuestion: hardQuestions[0]?.marks || 4,
-          questions: hardQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: 'long',
-            difficulty: 'hard',
-            marks: q.marks || 4,
-            options: [],
-            answerKey: {
-              correctOption: q.correctAnswer || 'Final calculated answer',
-              solution: q.explanation || 'Full derivation and calculations.',
-              rubric: `${q.marks || 4} Marks: Formula (1M) + Steps (2M) + Final Answer (1M).`
-            }
-          }))
-        });
-      }
-
-      // Fallback if not split
-      if (formattedSections.length === 0 && rawQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-a',
-          title: 'SECTION A: COMPREHENSIVE QUESTIONS',
-          subtitle: 'Answer the following questions.',
-          marksPerQuestion: 2,
-          questions: rawQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: q.type === 'MCQ' ? 'mcq' : 'short',
-            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-            marks: q.marks || 2,
-            options: q.options || [],
-            answerKey: {
-              correctOption: q.correctAnswer || 'Answer key',
-              solution: q.explanation || 'Explanation',
-              rubric: `${q.marks || 2} Marks.`
-            }
-          }))
-        });
-      }
-
   const handleGeneratePaper = async () => {
     setIsGenerating(true);
     setGenerationProgress('1/3 Connecting to AI backend server...');
@@ -2938,51 +2897,10 @@ function MainAppContainer() {
     }
   };
 
-  const handleSwapQuestion = async (qId, qDifficulty) => {
+  const handleSwapQuestion = (qId, qDifficulty) => {
     setSwappingQuestionId(qId);
-
-    let targetQuestion = null;
-    sections.forEach(sec => {
-      const q = sec.questions?.find(item => item.id === qId);
-      if (q) targetQuestion = q;
-    });
-
-    try {
-      const response = await fetch('http://localhost:5000/api/swap-question', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentQuestion: targetQuestion,
-          subject: header.subject,
-          difficulty: qDifficulty,
-          type: targetQuestion?.type || 'short'
-        })
-      });
-
-      const data = await response.json();
-      if (data.success && data.question) {
-        const newQ = data.question;
-        setSections(prevSections =>
-          prevSections.map(sec => ({
-            ...sec,
-            questions: sec.questions.map(q => {
-              if (q.id === qId) {
-                return {
-                  ...q,
-                  text: newQ.text,
-                  options: newQ.options || q.options,
-                  answerKey: newQ.answerKey || q.answerKey
-                };
-              }
-              return q;
-            })
-          }))
-        );
-        showToast('🔄 Question swapped live via Gemini API!');
-      } else {
-        throw new Error(data.error || 'Failed to swap question');
-      }
-    } catch (err) {
+    
+    setTimeout(() => {
       const pool = QUESTION_POOL[qDifficulty] || QUESTION_POOL.easy;
       const randomQ = pool[Math.floor(Math.random() * pool.length)];
 
@@ -3002,10 +2920,10 @@ function MainAppContainer() {
           })
         }))
       );
-      showToast('🔄 Swapped from local fallback bank.');
-    } finally {
+
       setSwappingQuestionId(null);
-    }
+      showToast('🔄 Question swapped with alternative variant from item bank!');
+    }, 600);
   };
 
   const handleEditQuestion = (qId, newText) => {
@@ -3016,36 +2934,6 @@ function MainAppContainer() {
       }))
     );
     showToast('Question updated successfully!');
-  };
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSaveToSupabase = async () => {
-    setIsSaving(true);
-    try {
-      const response = await fetch('http://localhost:5000/api/save-exam', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: `${header.subject} (${header.standard})`,
-          header: header,
-          sections: sections,
-          difficulty: difficulty
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        showToast('☁️ Exam Paper saved successfully to Supabase cloud database!');
-      } else {
-        throw new Error(data.error || 'Failed to save to Supabase');
-      }
-    } catch (err) {
-      console.error('Supabase Save Error:', err);
-      showToast(`❌ Cloud Save: ${err.message}`, 'error');
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleQuickPrint = () => {
@@ -3078,8 +2966,6 @@ function MainAppContainer() {
         onSelectPreset={handleSelectPreset}
         onOpenExportModal={() => setExportModalOpen(true)}
         onQuickPrint={handleQuickPrint}
-        onSaveToSupabase={handleSaveToSupabase}
-        isSaving={isSaving}
       />
 
       {/* Main Center Views Switcher */}
@@ -3088,6 +2974,7 @@ function MainAppContainer() {
           currentUser={currentUser}
           onNavigateCenter={setActiveCenterTab}
           onOpenSettings={() => setSettingsModalOpen(true)}
+          showToast={showToast}
         />
       )}
 
@@ -3149,7 +3036,7 @@ function MainAppContainer() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce-in">
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce-in no-print">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold backdrop-blur-md ${
             toastMessage.type === 'info'
               ? 'bg-slate-800/95 border-slate-700 text-slate-200'
