@@ -1,5 +1,6 @@
 // ExamCraft AI - Final Unified Standalone React App
-const { useState, useEffect } = React;
+const useState = (...args) => React.useState(...args);
+const useEffect = (...args) => React.useEffect(...args);
 
 // Supabase Client Initialization (Direct Browser SDK for Live Deployment)
 const SUPABASE_URL = 'https://jbftwiovpwkkcpdkdifm.supabase.co';
