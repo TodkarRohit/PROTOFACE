@@ -456,9 +456,28 @@ function LoginScreen({ onLoginSuccess }) {
   const [regBranch, setRegBranch] = useState('Computer Engineering');
   const [regSubject, setRegSubject] = useState('Physics (Science Paper I)');
 
-  const handleLogin = (e) => {
+  // Handle Login Submit
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameInput, passwordInput })
+      });
+
+      const data = await response.json();
+      if (data.success && data.user) {
+        onLoginSuccess(data.user);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend login notice, checking local demo database:', err);
+    }
+
+    // Local array check
     const user = MOCK_USERS.find(
       u => (u.username.toLowerCase() === usernameInput.trim().toLowerCase() || 
             u.email.toLowerCase() === usernameInput.trim().toLowerCase()) &&
@@ -479,11 +498,39 @@ function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  const handleRegister = (e) => {
+  // Handle Registration Submit
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (!regName || !regEmail || !regUsername || !regPassword) {
       setErrorMessage('Please fill in all required registration fields.');
       return;
+    }
+
+    const payload = {
+      name: regName,
+      username: regUsername,
+      email: regEmail,
+      password: regPassword,
+      role: regRole,
+      collegeName: regCollege,
+      branch: regBranch,
+      subject: regSubject
+    };
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      if (data.success && data.user) {
+        onLoginSuccess(data.user);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend registration error, adding to local session:', err);
     }
 
     const newUser = {
@@ -2541,27 +2588,90 @@ function MainAppContainer() {
     showToast('Source removed', 'info');
   };
 
-  const handleGeneratePaper = () => {
+  const handleGeneratePaper = async () => {
     setIsGenerating(true);
-    setGenerationProgress('1/3 Analyzing syllabus & weightings...');
+    setGenerationProgress('1/3 Connecting to Node.js backend...');
 
-    setTimeout(() => {
-      setGenerationProgress('2/3 Generating cognitive questions...');
-      setTimeout(() => {
+    try {
+      const response = await fetch('http://localhost:5000/api/generate-exam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schoolName: header.schoolName,
+          standard: header.standard,
+          subject: header.subject,
+          totalMarks: header.totalMarks,
+          timeAllowed: header.timeAllowed,
+          difficulty: difficulty,
+          syllabusContext: sources.map(s => s.name).join(', ')
+        })
+      });
+
+      setGenerationProgress('2/3 Generating questions with Google Gemini API...');
+      const data = await response.json();
+
+      if (data.success && data.exam) {
         setGenerationProgress('3/3 Structuring A4 document layout...');
-        setTimeout(() => {
-          setIsGenerating(false);
-          setGenerationProgress('');
-          showToast('✨ AI Exam Paper generated successfully with optimal cognitive balance!');
-        }, 800);
-      }, 900);
-    }, 900);
+        if (data.exam.header) setHeader(data.exam.header);
+        if (data.exam.sections) setSections(data.exam.sections);
+        showToast('✨ AI Exam Paper generated successfully from live Gemini API!');
+      } else {
+        throw new Error(data.error || 'Failed to generate exam paper');
+      }
+    } catch (err) {
+      console.warn('Backend API connection error:', err);
+      showToast(`⚠️ Backend Notice: ${err.message}.`, 'warning');
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress('');
+    }
   };
 
-  const handleSwapQuestion = (qId, qDifficulty) => {
+  const handleSwapQuestion = async (qId, qDifficulty) => {
     setSwappingQuestionId(qId);
-    
-    setTimeout(() => {
+
+    let targetQuestion = null;
+    sections.forEach(sec => {
+      const q = sec.questions?.find(item => item.id === qId);
+      if (q) targetQuestion = q;
+    });
+
+    try {
+      const response = await fetch('http://localhost:5000/api/swap-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentQuestion: targetQuestion,
+          subject: header.subject,
+          difficulty: qDifficulty,
+          type: targetQuestion?.type || 'short'
+        })
+      });
+
+      const data = await response.json();
+      if (data.success && data.question) {
+        const newQ = data.question;
+        setSections(prevSections =>
+          prevSections.map(sec => ({
+            ...sec,
+            questions: sec.questions.map(q => {
+              if (q.id === qId) {
+                return {
+                  ...q,
+                  text: newQ.text,
+                  options: newQ.options || q.options,
+                  answerKey: newQ.answerKey || q.answerKey
+                };
+              }
+              return q;
+            })
+          }))
+        );
+        showToast('🔄 Question swapped live via Gemini API!');
+      } else {
+        throw new Error(data.error || 'Failed to swap question');
+      }
+    } catch (err) {
       const pool = QUESTION_POOL[qDifficulty] || QUESTION_POOL.easy;
       const randomQ = pool[Math.floor(Math.random() * pool.length)];
 
@@ -2581,10 +2691,10 @@ function MainAppContainer() {
           })
         }))
       );
-
+      showToast('🔄 Swapped from local fallback bank.');
+    } finally {
       setSwappingQuestionId(null);
-      showToast('🔄 Question swapped with alternative variant from item bank!');
-    }, 600);
+    }
   };
 
   const handleEditQuestion = (qId, newText) => {
@@ -2595,6 +2705,36 @@ function MainAppContainer() {
       }))
     );
     showToast('Question updated successfully!');
+  };
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveToSupabase = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/save-exam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${header.subject} (${header.standard})`,
+          header: header,
+          sections: sections,
+          difficulty: difficulty
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        showToast('☁️ Exam Paper saved successfully to Supabase cloud database!');
+      } else {
+        throw new Error(data.error || 'Failed to save to Supabase');
+      }
+    } catch (err) {
+      console.error('Supabase Save Error:', err);
+      showToast(`❌ Cloud Save: ${err.message}`, 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleQuickPrint = () => {
@@ -2627,6 +2767,8 @@ function MainAppContainer() {
         onSelectPreset={handleSelectPreset}
         onOpenExportModal={() => setExportModalOpen(true)}
         onQuickPrint={handleQuickPrint}
+        onSaveToSupabase={handleSaveToSupabase}
+        isSaving={isSaving}
       />
 
       {/* Main Center Views Switcher */}
