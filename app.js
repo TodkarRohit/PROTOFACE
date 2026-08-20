@@ -2057,7 +2057,7 @@ function A4PreviewPanel({
 
   return (
     <main className="flex-1 bg-slate-200/90 dark:bg-slate-950 p-4 lg:p-8 overflow-y-auto flex flex-col items-center min-h-screen">
-      <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-800 p-2.5 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-800 p-2.5 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs no-print">
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-[11px] ${
             viewMode === 'teacher' 
