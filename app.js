@@ -1,6 +1,13 @@
 // ExamCraft AI - Standalone React App with Login, RBAC, Settings, Notes, HOD Oversight & Home Sub-Page
 const { useState, useEffect } = React;
 
+// Supabase Client Initialization (Direct Browser SDK for Live Deployment)
+const SUPABASE_URL = 'https://jbftwiovpwkkcpdkdifm.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_KP_qZBwdO2YfUZrFe0EXjw_9a7-emIt';
+const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function')
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
 // ----------------------------------------------------------------------
 // 1. MOCK USER DATABASE (TEACHERS, HODs, PRINCIPALS)
 // ----------------------------------------------------------------------
@@ -460,12 +467,44 @@ function LoginScreen({ onLoginSuccess }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
-    
+    const inputVal = usernameInput.trim();
+
+    // 1. Try Direct Supabase Query (Works Live on Web / Antigravity / GitHub Pages)
+    if (supabaseClient) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('users')
+          .select('*')
+          .or(`username.eq.${inputVal},email.eq.${inputVal}`)
+          .eq('password', passwordInput);
+
+        if (!error && data?.length) {
+          const u = data[0];
+          onLoginSuccess({
+            id: u.id,
+            name: u.name,
+            username: u.username,
+            email: u.email,
+            role: u.role,
+            roleTitle: u.role_title || 'Educator',
+            collegeName: u.college_name || 'NMIET',
+            branch: u.branch || 'General',
+            subject: u.subject || 'General',
+            allowedSubjects: [u.subject || 'General']
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('Supabase browser login query notice:', err);
+      }
+    }
+
+    // 2. Try Node Backend API
     try {
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernameInput, passwordInput })
+        body: JSON.stringify({ usernameInput: inputVal, passwordInput })
       });
 
       const data = await response.json();
@@ -477,17 +516,17 @@ function LoginScreen({ onLoginSuccess }) {
       console.warn('Backend login notice, checking local demo database:', err);
     }
 
-    // Local array check
+    // 3. Local demo array check
     const user = MOCK_USERS.find(
-      u => (u.username.toLowerCase() === usernameInput.trim().toLowerCase() || 
-            u.email.toLowerCase() === usernameInput.trim().toLowerCase()) &&
+      u => (u.username.toLowerCase() === inputVal.toLowerCase() || 
+            u.email.toLowerCase() === inputVal.toLowerCase()) &&
            u.password === passwordInput
     );
 
     if (user) {
       onLoginSuccess(user);
     } else {
-      setErrorMessage('Invalid username/email or password. Try quick demo login buttons below!');
+      setErrorMessage('Invalid username/email or password. Try registering a new account!');
     }
   };
 
@@ -506,33 +545,7 @@ function LoginScreen({ onLoginSuccess }) {
       return;
     }
 
-    const payload = {
-      name: regName,
-      username: regUsername,
-      email: regEmail,
-      password: regPassword,
-      role: regRole,
-      collegeName: regCollege,
-      branch: regBranch,
-      subject: regSubject
-    };
-
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-      if (data.success && data.user) {
-        onLoginSuccess(data.user);
-        return;
-      }
-    } catch (err) {
-      console.warn('Backend registration error, adding to local session:', err);
-    }
-
+    const roleTitle = regRole === 'teacher' ? 'Subject Teacher' : regRole === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean';
     const newUser = {
       id: `usr-${Date.now()}`,
       name: regName,
@@ -540,12 +553,52 @@ function LoginScreen({ onLoginSuccess }) {
       email: regEmail,
       password: regPassword,
       role: regRole,
-      roleTitle: regRole === 'teacher' ? 'Subject Teacher' : regRole === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean',
+      roleTitle: roleTitle,
       collegeName: regCollege,
       branch: regBranch,
       subject: regSubject,
       allowedSubjects: [regSubject]
     };
+
+    // 1. Write directly to Supabase Cloud from Browser
+    if (supabaseClient) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('users')
+          .insert([{
+            name: regName,
+            username: regUsername,
+            email: regEmail,
+            password: regPassword,
+            role: regRole,
+            role_title: roleTitle,
+            college_name: regCollege,
+            branch: regBranch,
+            subject: regSubject
+          }])
+          .select();
+
+        if (!error && data?.length) {
+          newUser.id = data[0].id;
+          console.log('✅ Directly registered user into Supabase Cloud table!');
+        } else if (error) {
+          console.error('Supabase user insert error:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase browser registration notice:', err);
+      }
+    }
+
+    // 2. Try Node Backend API
+    try {
+      await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+    } catch (err) {
+      console.warn('Backend registration notice:', err);
+    }
 
     MOCK_USERS.push(newUser);
     onLoginSuccess(newUser);
