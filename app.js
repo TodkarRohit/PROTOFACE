@@ -877,7 +877,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
 // ----------------------------------------------------------------------
 // 7. HOME SUB-PAGE / FACULTY DASHBOARD COMPONENT
 // ----------------------------------------------------------------------
-function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
+function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings, showToast }) {
   return (
     <div className="flex-1 bg-slate-950 text-white p-6 lg:p-10 overflow-y-auto font-sans selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -1040,10 +1040,18 @@ function HomePageSubPage({ currentUser, onNavigateCenter, onOpenSettings }) {
                 </p>
               </div>
               <button
-                onClick={() => onNavigateCenter('oversight')}
+                onClick={() => {
+                  if (currentUser.role === 'hod' || currentUser.role === 'principal') {
+                    onNavigateCenter('oversight');
+                  } else if (showToast) {
+                    showToast('🔒 Access Restricted: Only HODs and Principals can send faculty paper requests.', 'info');
+                  } else {
+                    alert('Only HODs and Principals can send faculty paper requests.');
+                  }
+                }}
                 className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/30 transition-all"
               >
-                Open Dept Oversight →
+                {currentUser.role === 'hod' || currentUser.role === 'principal' ? 'Open Dept Oversight →' : 'HOD / Principal Only 🔒'}
               </button>
             </div>
           </div>
@@ -1143,10 +1151,10 @@ function Navbar({
             ACADEMIC PORTAL
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
-            Engineering Notes Hub
+            {currentUser.collegeName || 'NMIET (Nutan Maharashtra Institute of Engineering & Technology)'}
           </h1>
           <p className="text-xs font-semibold text-blue-100/90 tracking-wide mt-0.5">
-            {currentUser.collegeName || 'NMIET'} Study Materials, Question Banks, and Assignments
+            Academic Portal • Study Materials, Question Banks, and Exam Generator
           </p>
         </div>
 
@@ -2224,13 +2232,15 @@ function DepartmentOversightView({ currentUser, facultyPapers, onRequestPaper })
                         <button className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg text-xs">
                           View Paper PDF 👁️
                         </button>
-                      ) : (
+                      ) : (currentUser.role === 'hod' || currentUser.role === 'principal') ? (
                         <button
                           onClick={() => onRequestPaper(fp.id, fp.facultyName, fp.subject)}
                           className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs shadow-md shadow-blue-600/30"
                         >
                           📩 Request Faculty to Generate
                         </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-medium">Pending Generation</span>
                       )}
                     </td>
                   </tr>
@@ -2635,6 +2645,7 @@ function MainAppContainer() {
           currentUser={currentUser}
           onNavigateCenter={setActiveCenterTab}
           onOpenSettings={() => setSettingsModalOpen(true)}
+          showToast={showToast}
         />
       )}
 
