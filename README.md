@@ -19,32 +19,7 @@ ExamCraft AI is a modern, clean, and highly interactive web application designed
 
 ---
 
-## 🌐 Deploying to GitHub Pages (github.io)
 
-This repository is optimized for instant deployment on **GitHub Pages** with **zero build tools required**.
-
-### Quick Deployment Steps:
-
-1. **Push Code to GitHub**:
-   ```bash
-   git add .
-   git commit -m "Deploy ExamCraft AI web application"
-   git push origin main
-   ```
-
-2. **Enable GitHub Pages**:
-   - Go to your GitHub repository: `https://github.com/<your-username>/<your-repo-name>`
-   - Click on **Settings** (top tab bar).
-   - In the left sidebar, navigate to **Pages** (under Code and automation).
-   - Under **Build and deployment** -> **Source**, select **Deploy from a branch**.
-   - Choose `main` branch and `/ (root)` folder.
-   - Click **Save**.
-
-3. **View Your Live Website**:
-   - After 1-2 minutes, your website will be live at:
-     `https://<your-username>.github.io/<your-repo-name>/`
-
----
 
 ## 📂 Project Structure
 
@@ -52,7 +27,7 @@ This repository is optimized for instant deployment on **GitHub Pages** with **z
 PROTOFACE/
 ├── index.html            # Main web entry point (Tailwind, React 18, Babel ESM)
 ├── styles.css            # Custom A4 paper styles, scrollbars, print layout
-├── app.js                # React App state manager & toast notifications
+├── app.js                ![](image.png)# React App state manager & toast notifications
 ├── .nojekyll             # Prevents GitHub Pages Jekyll build filtering
 ├── components/
 │   ├── Navbar.js         # Top Header with Student/Teacher Answer Key toggle & export
