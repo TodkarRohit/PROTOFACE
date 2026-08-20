@@ -456,9 +456,28 @@ function LoginScreen({ onLoginSuccess }) {
   const [regBranch, setRegBranch] = useState('Computer Engineering');
   const [regSubject, setRegSubject] = useState('Physics (Science Paper I)');
 
-  const handleLogin = (e) => {
+  // Handle Login Submit
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameInput, passwordInput })
+      });
+
+      const data = await response.json();
+      if (data.success && data.user) {
+        onLoginSuccess(data.user);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend login notice, checking local demo database:', err);
+    }
+
+    // Local array check
     const user = MOCK_USERS.find(
       u => (u.username.toLowerCase() === usernameInput.trim().toLowerCase() || 
             u.email.toLowerCase() === usernameInput.trim().toLowerCase()) &&
@@ -479,11 +498,39 @@ function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  const handleRegister = (e) => {
+  // Handle Registration Submit
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (!regName || !regEmail || !regUsername || !regPassword) {
       setErrorMessage('Please fill in all required registration fields.');
       return;
+    }
+
+    const payload = {
+      name: regName,
+      username: regUsername,
+      email: regEmail,
+      password: regPassword,
+      role: regRole,
+      collegeName: regCollege,
+      branch: regBranch,
+      subject: regSubject
+    };
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      if (data.success && data.user) {
+        onLoginSuccess(data.user);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend registration error, adding to local session:', err);
     }
 
     const newUser = {
@@ -2542,6 +2589,7 @@ function MainAppContainer() {
   };
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   // AI Full Exam Generation via Live Backend API
   const handleGeneratePaper = async () => {
 =======
@@ -2707,21 +2755,181 @@ function MainAppContainer() {
         });
       }
 
-      setSections(formattedSections);
-      showToast('✨ AI Exam Paper generated successfully from live Gemini backend!');
+  const handleGeneratePaper = async () => {
+    setIsGenerating(true);
+    setGenerationProgress('1/3 Connecting to AI backend server...');
+
+    try {
+      // Try /api/generate-exam or /api/generate-paper
+      let response = await fetch('http://localhost:5000/api/generate-exam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schoolName: header.schoolName,
+          standard: header.standard,
+          subject: header.subject,
+          totalMarks: header.totalMarks,
+          timeAllowed: header.timeAllowed,
+          difficulty: difficulty,
+          syllabusContext: sources.map(s => s.name).join(', ')
+        })
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        // Fallback to /api/generate-paper
+        const totalQuestions = 8;
+        const totalMarks = Number(header.totalMarks) || 30;
+        const easyPct = Number(difficulty.easy) || 30;
+        const medPct = Number(difficulty.medium) || 50;
+        let easy = Math.max(1, Math.round((easyPct / 100) * totalQuestions));
+        let medium = Math.max(1, Math.round((medPct / 100) * totalQuestions));
+        let difficult = Math.max(1, totalQuestions - (easy + medium));
+
+        response = await fetch('http://localhost:5000/api/generate-paper', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subject: header.subject || 'Physics',
+            topic: header.subHeader || 'Unit Syllabus',
+            className: `${header.standard || 'Grade 10'} (${header.division || 'All'})`,
+            totalQuestions,
+            totalMarks,
+            difficulty: { easy, medium, difficult },
+            questionTypes: ['MCQ', 'Short Answer', 'Numerical']
+          })
+        });
+      }
+
+      setGenerationProgress('2/3 Generating questions with Google Gemini API...');
+      const data = await response.json();
+
+      if (data.success && data.exam) {
+        setGenerationProgress('3/3 Structuring A4 document layout...');
+        if (data.exam.header) setHeader(data.exam.header);
+        if (data.exam.sections) setSections(data.exam.sections);
+        showToast('✨ AI Exam Paper generated successfully from live Gemini API!');
+      } else if (data.success && data.paper) {
+        setGenerationProgress('3/3 Structuring A4 document layout...');
+        const rawQuestions = data.paper.questions || [];
+        const mcqQuestions = rawQuestions.filter(q => q.type === 'MCQ' || (q.options && q.options.length > 0));
+        const shortQuestions = rawQuestions.filter(q => q.type !== 'MCQ' && (q.difficulty === 'easy' || q.difficulty === 'medium'));
+        const hardQuestions = rawQuestions.filter(q => q.type !== 'MCQ' && (q.difficulty === 'difficult' || q.difficulty === 'hard'));
+
+        const formattedSections = [];
+        let qCounter = 1;
+        if (mcqQuestions.length > 0) {
+          formattedSections.push({
+            id: 'sec-a',
+            title: 'SECTION A: MULTIPLE CHOICE QUESTIONS',
+            subtitle: 'Select the correct alternative for each question.',
+            marksPerQuestion: 1,
+            questions: mcqQuestions.map(q => ({
+              id: `ai-q-${qCounter}`,
+              number: String(qCounter++),
+              text: q.question,
+              type: 'mcq',
+              difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
+              marks: q.marks || 1,
+              options: q.options || ['A', 'B', 'C', 'D'],
+              answerKey: { correctOption: q.correctAnswer || '', solution: q.explanation || '', rubric: '1 Mark.' }
+            }))
+          });
+        }
+        if (shortQuestions.length > 0) {
+          formattedSections.push({
+            id: 'sec-b',
+            title: 'SECTION B: SHORT ANSWER QUESTIONS',
+            subtitle: 'Answer briefly with scientific principles.',
+            marksPerQuestion: 2,
+            questions: shortQuestions.map(q => ({
+              id: `ai-q-${qCounter}`,
+              number: String(qCounter++),
+              text: q.question,
+              type: 'short',
+              difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
+              marks: q.marks || 2,
+              options: [],
+              answerKey: { correctOption: q.correctAnswer || '', solution: q.explanation || '', rubric: '2 Marks.' }
+            }))
+          });
+        }
+        if (hardQuestions.length > 0) {
+          formattedSections.push({
+            id: 'sec-c',
+            title: 'SECTION C: NUMERICAL & ANALYTICAL PROBLEMS',
+            subtitle: 'Solve with step-by-step calculations.',
+            marksPerQuestion: 4,
+            questions: hardQuestions.map(q => ({
+              id: `ai-q-${qCounter}`,
+              number: String(qCounter++),
+              text: q.question,
+              type: 'long',
+              difficulty: 'hard',
+              marks: q.marks || 4,
+              options: [],
+              answerKey: { correctOption: q.correctAnswer || '', solution: q.explanation || '', rubric: '4 Marks.' }
+            }))
+          });
+        }
+        if (formattedSections.length > 0) setSections(formattedSections);
+        showToast('✨ AI Exam Paper generated successfully from live Gemini API!');
+      } else {
+        throw new Error(data.error || data.message || 'Failed to generate exam paper');
+      }
     } catch (err) {
-      console.error('Error generating paper:', err);
-      showToast(`⚠️ ${err.message}`, 'info');
+      console.warn('Backend API connection error:', err);
+      showToast(`⚠️ Backend Notice: ${err.message}.`, 'warning');
     } finally {
       setIsGenerating(false);
       setGenerationProgress('');
     }
   };
 
-  const handleSwapQuestion = (qId, qDifficulty) => {
+  const handleSwapQuestion = async (qId, qDifficulty) => {
     setSwappingQuestionId(qId);
-    
-    setTimeout(() => {
+
+    let targetQuestion = null;
+    sections.forEach(sec => {
+      const q = sec.questions?.find(item => item.id === qId);
+      if (q) targetQuestion = q;
+    });
+
+    try {
+      const response = await fetch('http://localhost:5000/api/swap-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentQuestion: targetQuestion,
+          subject: header.subject,
+          difficulty: qDifficulty,
+          type: targetQuestion?.type || 'short'
+        })
+      });
+
+      const data = await response.json();
+      if (data.success && data.question) {
+        const newQ = data.question;
+        setSections(prevSections =>
+          prevSections.map(sec => ({
+            ...sec,
+            questions: sec.questions.map(q => {
+              if (q.id === qId) {
+                return {
+                  ...q,
+                  text: newQ.text,
+                  options: newQ.options || q.options,
+                  answerKey: newQ.answerKey || q.answerKey
+                };
+              }
+              return q;
+            })
+          }))
+        );
+        showToast('🔄 Question swapped live via Gemini API!');
+      } else {
+        throw new Error(data.error || 'Failed to swap question');
+      }
+    } catch (err) {
       const pool = QUESTION_POOL[qDifficulty] || QUESTION_POOL.easy;
       const randomQ = pool[Math.floor(Math.random() * pool.length)];
 
@@ -2741,10 +2949,10 @@ function MainAppContainer() {
           })
         }))
       );
-
+      showToast('🔄 Swapped from local fallback bank.');
+    } finally {
       setSwappingQuestionId(null);
-      showToast('🔄 Question swapped with alternative variant from item bank!');
-    }, 600);
+    }
   };
 
   const handleEditQuestion = (qId, newText) => {
@@ -2755,6 +2963,36 @@ function MainAppContainer() {
       }))
     );
     showToast('Question updated successfully!');
+  };
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveToSupabase = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/save-exam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${header.subject} (${header.standard})`,
+          header: header,
+          sections: sections,
+          difficulty: difficulty
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        showToast('☁️ Exam Paper saved successfully to Supabase cloud database!');
+      } else {
+        throw new Error(data.error || 'Failed to save to Supabase');
+      }
+    } catch (err) {
+      console.error('Supabase Save Error:', err);
+      showToast(`❌ Cloud Save: ${err.message}`, 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleQuickPrint = () => {
@@ -2787,6 +3025,8 @@ function MainAppContainer() {
         onSelectPreset={handleSelectPreset}
         onOpenExportModal={() => setExportModalOpen(true)}
         onQuickPrint={handleQuickPrint}
+        onSaveToSupabase={handleSaveToSupabase}
+        isSaving={isSaving}
       />
 
       {/* Main Center Views Switcher */}
