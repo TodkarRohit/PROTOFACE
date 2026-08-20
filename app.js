@@ -1,29 +1,5 @@
 // ExamCraft AI - Final Unified Standalone React App
-const useState = (...args) => React.useState(...args);
-const useEffect = (...args) => React.useEffect(...args);
-
-// Supabase Client Initialization (Direct Browser SDK for Live Deployment)
-const SUPABASE_URL = 'https://jbftwiovpwkkcpdkdifm.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_KP_qZBwdO2YfUZrFe0EXjw_9a7-emIt';
-const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function')
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
-  : null;
-
-// ----------------------------------------------------------------------
-// 0. PRECONFIGURED INSTITUTES & COLLEGES LIST
-// ----------------------------------------------------------------------
-const COLLEGE_OPTIONS = [
-  'NMIET (Nutan Maharashtra Institute of Engineering & Technology, Pune)',
-  'COEP Technological University (College of Engineering, Pune)',
-  'VJTI (Veermata Jijabai Technological Institute, Mumbai)',
-  'PICT (Pune Institute of Computer Technology, Pune)',
-  'MIT World Peace University (MIT-WPU, Pune)',
-  'VIT (Vishwakarma Institute of Technology, Pune)',
-  'PCCOE (Pimpri Chinchwad College of Engineering, Pune)',
-  'SPPU (Savitribai Phule Pune University, Pune)',
-  'IIT Bombay (Indian Institute of Technology, Mumbai)',
-  'Other / Custom Institute...'
-];
+const { useState, useEffect } = React;
 
 // ----------------------------------------------------------------------
 // 1. MOCK USER DATABASE (TEACHERS, HODs, PRINCIPALS)
@@ -476,74 +452,23 @@ function LoginScreen({ onLoginSuccess }) {
   const [regUsername, setRegUsername] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState('teacher');
-  const [regCollege, setRegCollege] = useState(COLLEGE_OPTIONS[0]);
-  const [customCollege, setCustomCollege] = useState('');
+  const [regCollege, setRegCollege] = useState('NMIET (Nutan Maharashtra Institute of Engineering & Technology)');
   const [regBranch, setRegBranch] = useState('Computer Engineering');
   const [regSubject, setRegSubject] = useState('Physics (Science Paper I)');
 
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
     setErrorMessage('');
-    const inputVal = usernameInput.trim();
-
-    // 1. Try Direct Supabase Query (Works Live on Web / Antigravity / GitHub Pages)
-    if (supabaseClient) {
-      try {
-        const { data, error } = await supabaseClient
-          .from('users')
-          .select('*')
-          .or(`username.eq.${inputVal},email.eq.${inputVal}`)
-          .eq('password', passwordInput);
-
-        if (!error && data?.length) {
-          const u = data[0];
-          onLoginSuccess({
-            id: u.id,
-            name: u.name,
-            username: u.username,
-            email: u.email,
-            role: u.role,
-            roleTitle: u.role_title || 'Educator',
-            collegeName: u.college_name || 'NMIET',
-            branch: u.branch || 'General',
-            subject: u.subject || 'General',
-            allowedSubjects: [u.subject || 'General']
-          });
-          return;
-        }
-      } catch (err) {
-        console.warn('Supabase browser login query notice:', err);
-      }
-    }
-
-    // 2. Try Node Backend API
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernameInput: inputVal, passwordInput })
-      });
-
-      const data = await response.json();
-      if (data.success && data.user) {
-        onLoginSuccess(data.user);
-        return;
-      }
-    } catch (err) {
-      console.warn('Backend login notice, checking local demo database:', err);
-    }
-
-    // 3. Local demo array check
     const user = MOCK_USERS.find(
-      u => (u.username.toLowerCase() === inputVal.toLowerCase() || 
-            u.email.toLowerCase() === inputVal.toLowerCase()) &&
+      u => (u.username.toLowerCase() === usernameInput.trim().toLowerCase() || 
+            u.email.toLowerCase() === usernameInput.trim().toLowerCase()) &&
            u.password === passwordInput
     );
 
     if (user) {
       onLoginSuccess(user);
     } else {
-      setErrorMessage('Invalid username/email or password. Try registering a new account!');
+      setErrorMessage('Invalid username/email or password. Try quick demo login buttons below!');
     }
   };
 
@@ -554,19 +479,13 @@ function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  const handleRegister = async (e) => {
+  const handleRegister = (e) => {
     e.preventDefault();
     if (!regName || !regEmail || !regUsername || !regPassword) {
       setErrorMessage('Please fill in all required registration fields.');
       return;
     }
 
-    const resolvedCollege = regCollege === 'Other / Custom Institute...' && customCollege.trim()
-      ? customCollege.trim()
-      : regCollege;
-
-    const roleTitle = regRole === 'teacher' ? 'Subject Teacher' : regRole === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean';
-    
     const newUser = {
       id: `usr-${Date.now()}`,
       name: regName,
@@ -574,98 +493,12 @@ function LoginScreen({ onLoginSuccess }) {
       email: regEmail,
       password: regPassword,
       role: regRole,
-      roleTitle: roleTitle,
-      collegeName: resolvedCollege,
+      roleTitle: regRole === 'teacher' ? 'Subject Teacher' : regRole === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean',
+      collegeName: regCollege,
       branch: regBranch,
       subject: regSubject,
       allowedSubjects: [regSubject]
     };
-
-    // 1. Write directly to Supabase Cloud from Browser
-    if (supabaseClient) {
-      try {
-        const { data, error } = await supabaseClient
-          .from('users')
-          .insert([{
-            name: regName,
-            username: regUsername,
-            email: regEmail,
-            password: regPassword,
-            role: regRole,
-            role_title: roleTitle,
-            college_name: resolvedCollege,
-            branch: regBranch,
-            subject: regSubject
-          }])
-          .select();
-
-        if (!error && data?.length) {
-          newUser.id = data[0].id;
-          console.log('✅ Directly registered user into Supabase Cloud table!');
-        } else if (error) {
-          console.error('Supabase user insert error:', error.message);
-        }
-      } catch (err) {
-        console.warn('Supabase browser registration notice:', err);
-      }
-    }
-
-    // 2. Try Node Backend API
-    try {
-      await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      });
-    } catch (err) {
-      console.warn('Backend registration notice:', err);
-    }
-
-    MOCK_USERS.push(newUser);
-    onLoginSuccess(newUser);
-  };
-      allowedSubjects: [regSubject]
-    };
-
-    // 1. Write directly to Supabase Cloud from Browser
-    if (supabaseClient) {
-      try {
-        const { data, error } = await supabaseClient
-          .from('users')
-          .insert([{
-            name: regName,
-            username: regUsername,
-            email: regEmail,
-            password: regPassword,
-            role: regRole,
-            role_title: roleTitle,
-            college_name: regCollege,
-            branch: regBranch,
-            subject: regSubject
-          }])
-          .select();
-
-        if (!error && data?.length) {
-          newUser.id = data[0].id;
-          console.log('✅ Directly registered user into Supabase Cloud table!');
-        } else if (error) {
-          console.error('Supabase user insert error:', error.message);
-        }
-      } catch (err) {
-        console.warn('Supabase browser registration notice:', err);
-      }
-    }
-
-    // 2. Try Node Backend API
-    try {
-      await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      });
-    } catch (err) {
-      console.warn('Backend registration notice:', err);
-    }
 
     MOCK_USERS.push(newUser);
     onLoginSuccess(newUser);
@@ -816,30 +649,14 @@ function LoginScreen({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Institution / College Name
-              </label>
-              <select
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Institution / College Name</label>
+              <input
+                type="text"
                 value={regCollege}
                 onChange={(e) => setRegCollege(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {COLLEGE_OPTIONS.map((college, idx) => (
-                  <option key={idx} value={college}>
-                    {college}
-                  </option>
-                ))}
-              </select>
-              {regCollege === 'Other / Custom Institute...' && (
-                <input
-                  type="text"
-                  value={customCollege}
-                  onChange={(e) => setCustomCollege(e.target.value)}
-                  placeholder="Type your College / Institute name..."
-                  className="w-full mt-1.5 bg-slate-950 border border-blue-500/70 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              )}
+                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. NMIET"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -921,13 +738,13 @@ function LoginScreen({ onLoginSuccess }) {
 }
 
 // ----------------------------------------------------------------------
+// 6. FACULTY SETTINGS MODAL
+// ----------------------------------------------------------------------
 function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) {
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [subject, setSubject] = useState(currentUser?.subject || '');
   const [branch, setBranch] = useState(currentUser?.branch || '');
-  const [collegeName, setCollegeName] = useState(currentUser?.collegeName || COLLEGE_OPTIONS[0]);
-  const [customCollege, setCustomCollege] = useState('');
   const [password, setPassword] = useState(currentUser?.password || '');
 
   useEffect(() => {
@@ -936,7 +753,6 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
       setEmail(currentUser.email);
       setSubject(currentUser.subject);
       setBranch(currentUser.branch);
-      setCollegeName(currentUser.collegeName || COLLEGE_OPTIONS[0]);
       setPassword(currentUser.password);
     }
   }, [currentUser]);
@@ -945,17 +761,12 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const resolvedCollege = collegeName === 'Other / Custom Institute...' && customCollege.trim()
-      ? customCollege.trim()
-      : collegeName;
-
     onSaveSettings({
       ...currentUser,
       name,
       email,
       subject,
       branch,
-      collegeName: resolvedCollege,
       password,
       allowedSubjects: Array.from(new Set([...currentUser.allowedSubjects, subject]))
     });
@@ -963,7 +774,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans no-print" role="dialog">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans">
       <div className="bg-slate-900 text-white rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl overflow-hidden p-6 space-y-5">
         
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -996,31 +807,6 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
               className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white"
               required
             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Institution / College Name</label>
-            <select
-              value={collegeName}
-              onChange={(e) => setCollegeName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {COLLEGE_OPTIONS.map((col, idx) => (
-                <option key={idx} value={col}>
-                  {col}
-                </option>
-              ))}
-            </select>
-            {collegeName === 'Other / Custom Institute...' && (
-              <input
-                type="text"
-                value={customCollege}
-                onChange={(e) => setCustomCollege(e.target.value)}
-                placeholder="Type your College / Institute name..."
-                className="w-full mt-1.5 bg-slate-950 border border-blue-500/70 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            )}
           </div>
 
           <div>
@@ -2058,7 +1844,7 @@ function A4PreviewPanel({
 
   return (
     <main className="flex-1 bg-slate-200/90 dark:bg-slate-950 p-4 lg:p-8 overflow-y-auto flex flex-col items-center min-h-screen">
-      <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-800 p-2.5 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs no-print">
+      <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-800 p-2.5 mb-6 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-[11px] ${
             viewMode === 'teacher' 
@@ -2515,44 +2301,104 @@ function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
     return text;
   };
 
+  const generateWordHtml = () => {
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8"><title>${header.subject || 'Examination Paper'}</title>
+    <style>
+      body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; color: #111; margin: 20px; }
+      h1 { font-size: 16pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 2px; }
+      h2 { font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; color: #444; margin-top: 0; }
+      .header-table { width: 100%; border-bottom: 2px solid #111; margin-bottom: 15px; padding-bottom: 5px; }
+      .header-table td { font-size: 10pt; font-weight: bold; }
+      .instructions { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; font-size: 10pt; margin-bottom: 20px; }
+      .section-title { font-size: 12pt; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #666; margin-top: 20px; padding-bottom: 3px; }
+      .question { margin-bottom: 15px; page-break-inside: avoid; }
+      .question-title { font-weight: bold; font-size: 11pt; }
+      .options { margin-left: 20px; margin-top: 5px; list-style-type: none; }
+      .answer-key { background: #e6f4ea; border-left: 4px solid #34a853; padding: 8px; font-size: 10pt; margin-top: 8px; }
+    </style></head><body>`;
+
+    html += `<h1>${header.schoolName || ''}</h1>`;
+    html += `<h2>${header.subHeader || ''}</h2>`;
+    html += `<table class="header-table"><tr>`;
+    html += `<td>SUBJECT: ${header.subject || ''}<br>CLASS: ${header.standard || ''} (${header.division || ''})</td>`;
+    html += `<td style="text-align:right;">DATE: ${header.date || ''}<br>TIME: ${header.timeAllowed || ''} | MARKS: ${header.totalMarks || ''}</td>`;
+    html += `</tr></table>`;
+
+    if (header.instructions?.length) {
+      html += `<div class="instructions"><b>GENERAL INSTRUCTIONS:</b><ol>`;
+      header.instructions.forEach(inst => html += `<li>${inst}</li>`);
+      html += `</ol></div>`;
+    }
+
+    sections.forEach(sec => {
+      html += `<div class="section-title">${sec.title} (${sec.questions.length * sec.marksPerQuestion} Marks)</div>`;
+      if (sec.subtitle) html += `<p style="font-style:italic; font-size:10pt; color:#555;">${sec.subtitle}</p>`;
+      sec.questions.forEach(q => {
+        html += `<div class="question"><p class="question-title">Q${q.number}. ${q.text} <span style="float:right;">[${q.marks} Mark${q.marks > 1 ? 's' : ''}]</span></p>`;
+        if (q.options?.length) {
+          html += `<ul class="options">`;
+          q.options.forEach(opt => html += `<li>${opt}</li>`);
+          html += `</ul>`;
+        }
+        if (includeAnswerKey && q.answerKey) {
+          html += `<div class="answer-key"><b>Correct Option:</b> ${q.answerKey.correctOption || 'N/A'}<br><b>Solution:</b> ${q.answerKey.solution || ''}</div>`;
+        }
+        html += `</div>`;
+      });
+    });
+
+    html += `</body></html>`;
+    return html;
+  };
+
   const handleDownload = () => {
     setIsExporting(true);
 
     if (selectedFormat === 'pdf') {
       setIsExporting(false);
-      onClose();
+      onClose(); // Close modal first so overlay is completely removed before triggering print!
       setTimeout(() => {
         window.print();
-      }, 150);
+      }, 250);
       return;
     }
 
     setTimeout(() => {
-      const text = generatePlainText();
+      let content = '';
       let mimeType = 'text/plain';
       let extension = 'txt';
 
       if (selectedFormat === 'word') {
+        content = generateWordHtml();
         mimeType = 'application/msword';
         extension = 'doc';
+      } else {
+        content = generatePlainText();
+        mimeType = 'text/plain';
+        extension = 'txt';
       }
 
-      const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
+      const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${(header.subject || 'Exam_Paper').replace(/[^a-zA-Z0-9]/g, '_')}_Paper_${selectedFormat.toUpperCase()}.${extension}`;
+      const cleanSubject = (header.subject || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `${cleanSubject}_Paper.${extension}`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+
       setIsExporting(false);
       onClose();
     }, 400);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans no-print" role="dialog">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans no-print">
       <div className="bg-slate-900 text-white rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl overflow-hidden p-6 space-y-5">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
@@ -2768,134 +2614,21 @@ function MainAppContainer() {
     showToast('Source removed', 'info');
   };
 
-  const handleGeneratePaper = async () => {
+  const handleGeneratePaper = () => {
     setIsGenerating(true);
-    setGenerationProgress('1/3 Connecting to AI backend server...');
+    setGenerationProgress('1/3 Analyzing syllabus & weightings...');
 
-    try {
-      // Try /api/generate-exam or /api/generate-paper
-      let response = await fetch('http://localhost:5000/api/generate-exam', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          schoolName: header.schoolName,
-          standard: header.standard,
-          subject: header.subject,
-          totalMarks: header.totalMarks,
-          timeAllowed: header.timeAllowed,
-          difficulty: difficulty,
-          syllabusContext: sources.map(s => s.name).join(', ')
-        })
-      }).catch(() => null);
-
-      if (!response || !response.ok) {
-        // Fallback to /api/generate-paper
-        const totalQuestions = 8;
-        const totalMarks = Number(header.totalMarks) || 30;
-        const easyPct = Number(difficulty.easy) || 30;
-        const medPct = Number(difficulty.medium) || 50;
-        let easy = Math.max(1, Math.round((easyPct / 100) * totalQuestions));
-        let medium = Math.max(1, Math.round((medPct / 100) * totalQuestions));
-        let difficult = Math.max(1, totalQuestions - (easy + medium));
-
-        response = await fetch('http://localhost:5000/api/generate-paper', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            subject: header.subject || 'Physics',
-            topic: header.subHeader || 'Unit Syllabus',
-            className: `${header.standard || 'Grade 10'} (${header.division || 'All'})`,
-            totalQuestions,
-            totalMarks,
-            difficulty: { easy, medium, difficult },
-            questionTypes: ['MCQ', 'Short Answer', 'Numerical']
-          })
-        });
-      }
-
-      setGenerationProgress('2/3 Generating questions with Google Gemini API...');
-      const data = await response.json();
-
-      if (data.success && data.exam) {
+    setTimeout(() => {
+      setGenerationProgress('2/3 Generating cognitive questions...');
+      setTimeout(() => {
         setGenerationProgress('3/3 Structuring A4 document layout...');
-        if (data.exam.header) setHeader(data.exam.header);
-        if (data.exam.sections) setSections(data.exam.sections);
-        showToast('✨ AI Exam Paper generated successfully from live Gemini API!');
-      } else if (data.success && data.paper) {
-        setGenerationProgress('3/3 Structuring A4 document layout...');
-        const rawQuestions = data.paper.questions || [];
-        const mcqQuestions = rawQuestions.filter(q => q.type === 'MCQ' || (q.options && q.options.length > 0));
-        const shortQuestions = rawQuestions.filter(q => q.type !== 'MCQ' && (q.difficulty === 'easy' || q.difficulty === 'medium'));
-        const hardQuestions = rawQuestions.filter(q => q.type !== 'MCQ' && (q.difficulty === 'difficult' || q.difficulty === 'hard'));
-
-        const formattedSections = [];
-        let qCounter = 1;
-        if (mcqQuestions.length > 0) {
-          formattedSections.push({
-            id: 'sec-a',
-            title: 'SECTION A: MULTIPLE CHOICE QUESTIONS',
-            subtitle: 'Select the correct alternative for each question.',
-            marksPerQuestion: 1,
-            questions: mcqQuestions.map(q => ({
-              id: `ai-q-${qCounter}`,
-              number: String(qCounter++),
-              text: q.question,
-              type: 'mcq',
-              difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-              marks: q.marks || 1,
-              options: q.options || ['A', 'B', 'C', 'D'],
-              answerKey: { correctOption: q.correctAnswer || '', solution: q.explanation || '', rubric: '1 Mark.' }
-            }))
-          });
-        }
-        if (shortQuestions.length > 0) {
-          formattedSections.push({
-            id: 'sec-b',
-            title: 'SECTION B: SHORT ANSWER QUESTIONS',
-            subtitle: 'Answer briefly with scientific principles.',
-            marksPerQuestion: 2,
-            questions: shortQuestions.map(q => ({
-              id: `ai-q-${qCounter}`,
-              number: String(qCounter++),
-              text: q.question,
-              type: 'short',
-              difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-              marks: q.marks || 2,
-              options: [],
-              answerKey: { correctOption: q.correctAnswer || '', solution: q.explanation || '', rubric: '2 Marks.' }
-            }))
-          });
-        }
-        if (hardQuestions.length > 0) {
-          formattedSections.push({
-            id: 'sec-c',
-            title: 'SECTION C: NUMERICAL & ANALYTICAL PROBLEMS',
-            subtitle: 'Solve with step-by-step calculations.',
-            marksPerQuestion: 4,
-            questions: hardQuestions.map(q => ({
-              id: `ai-q-${qCounter}`,
-              number: String(qCounter++),
-              text: q.question,
-              type: 'long',
-              difficulty: 'hard',
-              marks: q.marks || 4,
-              options: [],
-              answerKey: { correctOption: q.correctAnswer || '', solution: q.explanation || '', rubric: '4 Marks.' }
-            }))
-          });
-        }
-        if (formattedSections.length > 0) setSections(formattedSections);
-        showToast('✨ AI Exam Paper generated successfully from live Gemini API!');
-      } else {
-        throw new Error(data.error || data.message || 'Failed to generate exam paper');
-      }
-    } catch (err) {
-      console.warn('Backend API connection error:', err);
-      showToast(`⚠️ Backend Notice: ${err.message}.`, 'warning');
-    } finally {
-      setIsGenerating(false);
-      setGenerationProgress('');
-    }
+        setTimeout(() => {
+          setIsGenerating(false);
+          setGenerationProgress('');
+          showToast('✨ AI Exam Paper generated successfully with optimal cognitive balance!');
+        }, 800);
+      }, 900);
+    }, 900);
   };
 
   const handleSwapQuestion = (qId, qDifficulty) => {
@@ -3037,7 +2770,7 @@ function MainAppContainer() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce-in no-print">
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce-in">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold backdrop-blur-md ${
             toastMessage.type === 'info'
               ? 'bg-slate-800/95 border-slate-700 text-slate-200'

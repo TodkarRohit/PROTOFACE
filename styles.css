@@ -25,7 +25,7 @@
     color: black !important;
   }
   
-  header, aside, .no-print, [role="dialog"], button {
+  header, aside, nav, .no-print, [role="dialog"], button, .fixed {
     display: none !important;
   }
 

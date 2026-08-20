@@ -44,6 +44,57 @@ export function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
     return text;
   };
 
+  const generateWordHtml = () => {
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8"><title>${header.subject || 'Examination Paper'}</title>
+    <style>
+      body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; color: #111; margin: 20px; }
+      h1 { font-size: 16pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 2px; }
+      h2 { font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; color: #444; margin-top: 0; }
+      .header-table { width: 100%; border-bottom: 2px solid #111; margin-bottom: 15px; padding-bottom: 5px; }
+      .header-table td { font-size: 10pt; font-weight: bold; }
+      .instructions { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; font-size: 10pt; margin-bottom: 20px; }
+      .section-title { font-size: 12pt; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #666; margin-top: 20px; padding-bottom: 3px; }
+      .question { margin-bottom: 15px; page-break-inside: avoid; }
+      .question-title { font-weight: bold; font-size: 11pt; }
+      .options { margin-left: 20px; margin-top: 5px; list-style-type: none; }
+      .answer-key { background: #e6f4ea; border-left: 4px solid #34a853; padding: 8px; font-size: 10pt; margin-top: 8px; }
+    </style></head><body>`;
+
+    html += `<h1>${header.schoolName || ''}</h1>`;
+    html += `<h2>${header.subHeader || ''}</h2>`;
+    html += `<table class="header-table"><tr>`;
+    html += `<td>SUBJECT: ${header.subject || ''}<br>CLASS: ${header.standard || ''} (${header.division || ''})</td>`;
+    html += `<td style="text-align:right;">DATE: ${header.date || ''}<br>TIME: ${header.timeAllowed || ''} | MARKS: ${header.totalMarks || ''}</td>`;
+    html += `</tr></table>`;
+
+    if (header.instructions?.length) {
+      html += `<div class="instructions"><b>GENERAL INSTRUCTIONS:</b><ol>`;
+      header.instructions.forEach(inst => html += `<li>${inst}</li>`);
+      html += `</ol></div>`;
+    }
+
+    sections.forEach(sec => {
+      html += `<div class="section-title">${sec.title} (${sec.questions.length * sec.marksPerQuestion} Marks)</div>`;
+      if (sec.subtitle) html += `<p style="font-style:italic; font-size:10pt; color:#555;">${sec.subtitle}</p>`;
+      sec.questions.forEach(q => {
+        html += `<div class="question"><p class="question-title">Q${q.number}. ${q.text} <span style="float:right;">[${q.marks} Mark${q.marks > 1 ? 's' : ''}]</span></p>`;
+        if (q.options?.length) {
+          html += `<ul class="options">`;
+          q.options.forEach(opt => html += `<li>${opt}</li>`);
+          html += `</ul>`;
+        }
+        if (includeAnswerKey && q.answerKey) {
+          html += `<div class="answer-key"><b>Correct Option:</b> ${q.answerKey.correctOption || 'N/A'}<br><b>Solution:</b> ${q.answerKey.solution || ''}</div>`;
+        }
+        html += `</div>`;
+      });
+    });
+
+    html += `</body></html>`;
+    return html;
+  };
+
   const handleDownload = () => {
     setIsExporting(true);
 
@@ -52,29 +103,38 @@ export function ExportModal({ isOpen, onClose, header, sections, viewMode }) {
       onClose();
       setTimeout(() => {
         window.print();
-      }, 150);
+      }, 250);
       return;
     }
 
     setTimeout(() => {
-      const text = generatePlainText();
+      let content = '';
       let mimeType = 'text/plain';
       let extension = 'txt';
 
       if (selectedFormat === 'word') {
+        content = generateWordHtml();
         mimeType = 'application/msword';
         extension = 'doc';
+      } else {
+        content = generatePlainText();
+        mimeType = 'text/plain';
+        extension = 'txt';
       }
 
-      const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
+      const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${(header.subject || 'Exam_Paper').replace(/[^a-zA-Z0-9]/g, '_')}_Paper_${selectedFormat.toUpperCase()}.${extension}`;
+      const cleanSubject = (header.subject || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `${cleanSubject}_Paper.${extension}`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+
       setIsExporting(false);
       onClose();
     }, 400);
