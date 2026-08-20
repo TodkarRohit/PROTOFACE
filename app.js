@@ -2,6 +2,22 @@
 const { useState, useEffect } = React;
 
 // ----------------------------------------------------------------------
+// 0. PRECONFIGURED INSTITUTES & COLLEGES LIST
+// ----------------------------------------------------------------------
+const COLLEGE_OPTIONS = [
+  'NMIET (Nutan Maharashtra Institute of Engineering & Technology, Pune)',
+  'COEP Technological University (College of Engineering, Pune)',
+  'VJTI (Veermata Jijabai Technological Institute, Mumbai)',
+  'PICT (Pune Institute of Computer Technology, Pune)',
+  'MIT World Peace University (MIT-WPU, Pune)',
+  'VIT (Vishwakarma Institute of Technology, Pune)',
+  'PCCOE (Pimpri Chinchwad College of Engineering, Pune)',
+  'SPPU (Savitribai Phule Pune University, Pune)',
+  'IIT Bombay (Indian Institute of Technology, Mumbai)',
+  'Other / Custom Institute...'
+];
+
+// ----------------------------------------------------------------------
 // 1. MOCK USER DATABASE (TEACHERS, HODs, PRINCIPALS)
 // ----------------------------------------------------------------------
 const MOCK_USERS = [
@@ -452,7 +468,8 @@ function LoginScreen({ onLoginSuccess }) {
   const [regUsername, setRegUsername] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState('teacher');
-  const [regCollege, setRegCollege] = useState('NMIET (Nutan Maharashtra Institute of Engineering & Technology)');
+  const [regCollege, setRegCollege] = useState(COLLEGE_OPTIONS[0]);
+  const [customCollege, setCustomCollege] = useState('');
   const [regBranch, setRegBranch] = useState('Computer Engineering');
   const [regSubject, setRegSubject] = useState('Physics (Science Paper I)');
 
@@ -506,13 +523,17 @@ function LoginScreen({ onLoginSuccess }) {
       return;
     }
 
+    const resolvedCollege = regCollege === 'Other / Custom Institute...' && customCollege.trim()
+      ? customCollege.trim()
+      : regCollege;
+
     const payload = {
       name: regName,
       username: regUsername,
       email: regEmail,
       password: regPassword,
       role: regRole,
-      collegeName: regCollege,
+      collegeName: resolvedCollege,
       branch: regBranch,
       subject: regSubject
     };
@@ -541,7 +562,7 @@ function LoginScreen({ onLoginSuccess }) {
       password: regPassword,
       role: regRole,
       roleTitle: regRole === 'teacher' ? 'Subject Teacher' : regRole === 'hod' ? 'Head of Department (HOD)' : 'Principal / Dean',
-      collegeName: regCollege,
+      collegeName: resolvedCollege,
       branch: regBranch,
       subject: regSubject,
       allowedSubjects: [regSubject]
@@ -696,14 +717,30 @@ function LoginScreen({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Institution / College Name</label>
-              <input
-                type="text"
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Institution / College Name
+              </label>
+              <select
                 value={regCollege}
                 onChange={(e) => setRegCollege(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. NMIET"
-              />
+                className="w-full bg-slate-950 border border-slate-750 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {COLLEGE_OPTIONS.map((college, idx) => (
+                  <option key={idx} value={college}>
+                    {college}
+                  </option>
+                ))}
+              </select>
+              {regCollege === 'Other / Custom Institute...' && (
+                <input
+                  type="text"
+                  value={customCollege}
+                  onChange={(e) => setCustomCollege(e.target.value)}
+                  placeholder="Type your College / Institute name..."
+                  className="w-full mt-1.5 bg-slate-950 border border-blue-500/70 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -785,13 +822,13 @@ function LoginScreen({ onLoginSuccess }) {
 }
 
 // ----------------------------------------------------------------------
-// 6. FACULTY SETTINGS MODAL
-// ----------------------------------------------------------------------
 function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) {
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [subject, setSubject] = useState(currentUser?.subject || '');
   const [branch, setBranch] = useState(currentUser?.branch || '');
+  const [collegeName, setCollegeName] = useState(currentUser?.collegeName || COLLEGE_OPTIONS[0]);
+  const [customCollege, setCustomCollege] = useState('');
   const [password, setPassword] = useState(currentUser?.password || '');
 
   useEffect(() => {
@@ -800,6 +837,7 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
       setEmail(currentUser.email);
       setSubject(currentUser.subject);
       setBranch(currentUser.branch);
+      setCollegeName(currentUser.collegeName || COLLEGE_OPTIONS[0]);
       setPassword(currentUser.password);
     }
   }, [currentUser]);
@@ -808,12 +846,17 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const resolvedCollege = collegeName === 'Other / Custom Institute...' && customCollege.trim()
+      ? customCollege.trim()
+      : collegeName;
+
     onSaveSettings({
       ...currentUser,
       name,
       email,
       subject,
       branch,
+      collegeName: resolvedCollege,
       password,
       allowedSubjects: Array.from(new Set([...currentUser.allowedSubjects, subject]))
     });
@@ -854,6 +897,31 @@ function FacultySettingsModal({ isOpen, onClose, currentUser, onSaveSettings }) 
               className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Institution / College Name</label>
+            <select
+              value={collegeName}
+              onChange={(e) => setCollegeName(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {COLLEGE_OPTIONS.map((col, idx) => (
+                <option key={idx} value={col}>
+                  {col}
+                </option>
+              ))}
+            </select>
+            {collegeName === 'Other / Custom Institute...' && (
+              <input
+                type="text"
+                value={customCollege}
+                onChange={(e) => setCustomCollege(e.target.value)}
+                placeholder="Type your College / Institute name..."
+                className="w-full mt-1.5 bg-slate-950 border border-blue-500/70 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            )}
           </div>
 
           <div>
@@ -2587,173 +2655,6 @@ function MainAppContainer() {
     setSources(prev => prev.filter(s => s.id !== id));
     showToast('Source removed', 'info');
   };
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-  // AI Full Exam Generation via Live Backend API
-  const handleGeneratePaper = async () => {
-=======
-  const handleGeneratePaper = () => {
->>>>>>> origin/main
-    setIsGenerating(true);
-    setGenerationProgress('1/3 Connecting to AI backend server...');
-
-    try {
-      const totalQuestions = 8; // Number of questions to generate
-      const totalMarks = Number(header.totalMarks) || 30;
-
-      // Calculate difficulty counts from slider percentages
-      const easyPct = Number(difficulty.easy) || 30;
-      const medPct = Number(difficulty.medium) || 50;
-
-      let easy = Math.max(1, Math.round((easyPct / 100) * totalQuestions));
-      let medium = Math.max(1, Math.round((medPct / 100) * totalQuestions));
-      let difficult = totalQuestions - (easy + medium);
-
-      if (difficult < 1) {
-        difficult = 1;
-        if (medium > 1) medium -= 1;
-        else if (easy > 1) easy -= 1;
-      }
-
-      setGenerationProgress('2/3 Generating cognitive questions with Gemini AI...');
-
-      // Include reference sources if any
-      const sourcesText = sources && sources.length > 0
-        ? ` (Syllabus reference: ${sources.map(s => s.name).join(', ')})`
-        : '';
-      const topicText = `${header.subHeader || 'Unit Syllabus'}${sourcesText}`;
-
-      const response = await fetch('http://localhost:5000/api/generate-paper', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          subject: header.subject || 'Physics',
-          topic: topicText,
-          className: `${header.standard || 'Grade 10'} (${header.division || 'All'})`,
-          totalQuestions,
-          totalMarks,
-          difficulty: { easy, medium, difficult },
-          questionTypes: ['MCQ', 'Short Answer', 'Numerical']
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success || !data.paper) {
-        throw new Error(data.message || 'Failed to generate question paper from backend.');
-      }
-
-      setGenerationProgress('3/3 Formatting A4 document layout...');
-
-      const rawQuestions = data.paper.questions || [];
-
-      // Categorize into sections
-      const mcqQuestions = rawQuestions.filter(q => q.type === 'MCQ' || (q.options && q.options.length > 0));
-      const nonMcqQuestions = rawQuestions.filter(q => q.type !== 'MCQ' && (!q.options || q.options.length === 0));
-      const shortQuestions = nonMcqQuestions.filter(q => q.difficulty === 'easy' || q.difficulty === 'medium');
-      const hardQuestions = nonMcqQuestions.filter(q => q.difficulty === 'difficult' || q.difficulty === 'hard');
-
-      const formattedSections = [];
-      let qCounter = 1;
-
-      // Section A: MCQs
-      if (mcqQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-a',
-          title: 'SECTION A: MULTIPLE CHOICE QUESTIONS',
-          subtitle: 'Select the correct alternative for each of the following questions.',
-          marksPerQuestion: mcqQuestions[0]?.marks || 1,
-          questions: mcqQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: 'mcq',
-            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-            marks: q.marks || 1,
-            options: q.options && q.options.length > 0 ? q.options : ['A', 'B', 'C', 'D'],
-            answerKey: {
-              correctOption: q.correctAnswer || 'See explanation',
-              solution: q.explanation || 'Step-by-step solution provided by AI.',
-              rubric: `${q.marks || 1} Mark for the correct option selection.`
-            }
-          }))
-        });
-      }
-
-      // Section B: Short Answer
-      if (shortQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-b',
-          title: 'SECTION B: SHORT ANSWER QUESTIONS',
-          subtitle: 'Answer the following questions briefly with scientific principles.',
-          marksPerQuestion: shortQuestions[0]?.marks || 2,
-          questions: shortQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: 'short',
-            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-            marks: q.marks || 2,
-            options: [],
-            answerKey: {
-              correctOption: q.correctAnswer || 'Complete written answer',
-              solution: q.explanation || 'Detailed scientific explanation.',
-              rubric: `${q.marks || 2} Marks: Key concepts and reasoning.`
-            }
-          }))
-        });
-      }
-
-      // Section C: Long Answer / Numerical
-      if (hardQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-c',
-          title: 'SECTION C: NUMERICAL & ANALYTICAL PROBLEMS',
-          subtitle: 'Solve with detailed step-by-step calculations and derivations.',
-          marksPerQuestion: hardQuestions[0]?.marks || 4,
-          questions: hardQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: 'long',
-            difficulty: 'hard',
-            marks: q.marks || 4,
-            options: [],
-            answerKey: {
-              correctOption: q.correctAnswer || 'Final calculated answer',
-              solution: q.explanation || 'Full derivation and calculations.',
-              rubric: `${q.marks || 4} Marks: Formula (1M) + Steps (2M) + Final Answer (1M).`
-            }
-          }))
-        });
-      }
-
-      // Fallback if not split
-      if (formattedSections.length === 0 && rawQuestions.length > 0) {
-        formattedSections.push({
-          id: 'sec-a',
-          title: 'SECTION A: COMPREHENSIVE QUESTIONS',
-          subtitle: 'Answer the following questions.',
-          marksPerQuestion: 2,
-          questions: rawQuestions.map(q => ({
-            id: `ai-q-${qCounter}`,
-            number: String(qCounter++),
-            text: q.question,
-            type: q.type === 'MCQ' ? 'mcq' : 'short',
-            difficulty: q.difficulty === 'difficult' ? 'hard' : q.difficulty,
-            marks: q.marks || 2,
-            options: q.options || [],
-            answerKey: {
-              correctOption: q.correctAnswer || 'Answer key',
-              solution: q.explanation || 'Explanation',
-              rubric: `${q.marks || 2} Marks.`
-            }
-          }))
-        });
-      }
 
   const handleGeneratePaper = async () => {
     setIsGenerating(true);
